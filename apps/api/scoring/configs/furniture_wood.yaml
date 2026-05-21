@@ -1,0 +1,139 @@
+sector_name: furniture_wood
+hs_chapters: ["44", "94"]
+
+# Google Shopping queries per target country language
+# Used by Worker 1 to scrape retail prices
+price_queries:
+  DE: ["Eichenholz Esstisch massiv", "Massivholz Esstisch Eiche", "Massivholzmöbel Esstisch"]
+  AT: ["Eichenholz Esstisch massiv", "Massivholzmöbel Österreich"]
+  IT: ["tavolo rovere massello", "tavolo legno massello rovere"]
+  FR: ["table chêne massif", "table bois massif"]
+  NL: ["eiken tafel massief", "massief houten tafel"]
+  CH: ["Eichenholz Esstisch massiv", "Massivholz Tisch Schweiz"]
+
+# How to derive wholesale from retail
+retail_to_wholesale_ratio: 0.37
+typical_retailer_margin: 0.45
+
+# Compliance items checked by Worker 2 for each report
+compliance_checks:
+  - id: fsc_coc
+    name: FSC Chain of Custody
+    type: commercial_expected
+    critical: true
+    cost_low_eur: 3500
+    cost_high_eur: 6500
+    lead_time_weeks_min: 10
+    lead_time_weeks_max: 16
+    providers:
+      - "SGS Vienna: +43 1 79567"
+      - "Bureau Veritas Austria"
+      - "BVQI"
+    note: "Forest source must be FSC-certified before audit. Check your timber supplier first."
+
+  - id: eudr_dds
+    name: EU Deforestation Regulation (EUDR) Due Diligence Statement
+    type: mandatory
+    critical: true
+    cost_low_eur: 0
+    cost_high_eur: 500
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 4
+    providers:
+      - "Self-prepared via EU TRACES portal"
+    note: "Requires GPS polygon data for forest origin. Obtain from your timber supplier."
+
+  - id: en_1730
+    name: EN 1730 Table Stability Test
+    type: commercial_expected
+    critical: false
+    cost_low_eur: 800
+    cost_high_eur: 1400
+    lead_time_weeks_min: 3
+    lead_time_weeks_max: 5
+    providers:
+      - "TÜV Austria: +43 1 514 07"
+      - "SGS Vienna"
+      - "Intertek Vienna"
+    note: "Most EU wholesale buyers require this before first order."
+
+  - id: reach_svhc
+    name: REACH SVHC Declaration
+    type: mandatory
+    critical: false
+    cost_low_eur: 0
+    cost_high_eur: 200
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 2
+    providers:
+      - "Self-prepared or via chemical compliance consultant"
+
+  - id: formaldehyde_e1
+    name: Formaldehyde E1 Class Compliance (wood panels)
+    type: mandatory
+    critical: false
+    cost_low_eur: 200
+    cost_high_eur: 600
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 4
+    providers:
+      - "Any EU-accredited wood testing lab"
+
+# Apollo buyer filter parameters
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "supply chain"
+  company_keywords:
+    - "möbel"
+    - "furniture"
+    - "holz"
+    - "legno"
+    - "bois"
+    - "ameublement"
+    - "interior"
+    - "home decor"
+    - "wholesale"
+    - "distributor"
+    - "importer"
+  company_size_ranges: ["11-50", "51-200", "201-500"]
+
+# Key trade fairs used in receptiveness scoring and action plan
+trade_fairs:
+  - name: "imm cologne"
+    country: DE
+    city: Cologne
+    month: 1
+    url: "https://www.imm-cologne.de"
+  - name: "Salone del Mobile"
+    country: IT
+    city: Milan
+    month: 4
+    url: "https://www.salonemilano.it"
+  - name: "MÖFA Salzburg"
+    country: AT
+    city: Salzburg
+    month: 9
+  - name: "Maison & Objet"
+    country: FR
+    city: Paris
+    month: 1
+
+# Working capital estimates for action plan (Section 6)
+typical_first_order_units: 60
+typical_compliance_cost_eur: 6000
+sample_shipping_cost_eur: 800
+
+# Competitor Perplexity Sonar Pro query template
+# {target_country} is filled at runtime
+competitor_query_template: >
+  Who are the top 3-5 solid oak furniture wholesale suppliers currently
+  selling to {target_country} distributors and wholesalers in 2025?
+  For each: country of origin, approximate wholesale price range per dining table,
+  certifications held, and which Austrian/German distributors they work with.
+  Cite sources.
