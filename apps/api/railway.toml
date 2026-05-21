@@ -1,7 +1,10 @@
 [build]
-buildCommand = "pip install -e ."
+builder = "nixpacks"
 
 [deploy]
 startCommand = "uvicorn main:app --host 0.0.0.0 --port $PORT"
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
+
+# BullMQ worker: deploy as a second Railway service from the same repo root apps/api/
+# Override start command to: python -m jobqueue.worker

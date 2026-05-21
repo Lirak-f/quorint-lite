@@ -14,6 +14,7 @@ from pydantic import BaseModel, Field
 load_dotenv()
 
 from auth import require_auth
+from posthog_client import get_posthog
 
 router = APIRouter()
 
@@ -133,6 +134,22 @@ async def create_report(
         "capacity_units": body.capacity_units,
     }).execute()
 
+    ph = get_posthog()
+    if ph:
+        ph.capture(
+            distinct_id=user_id,
+            event="report_created",
+            properties={
+                "report_id": report_id,
+                "hs_code": body.hs_code,
+                "origin_iso2": origin_iso2,
+                "target_iso2": body.target_iso2.upper(),
+                "tier": body.tier,
+                "capacity_units": body.capacity_units,
+                "certifications_count": len(body.certifications),
+            },
+        )
+
     # Create Paddle transaction — job is held until webhook fires
     from paddle_client import paddle
     from paddle_billing.Resources.Transactions.Operations.CreateTransaction import CreateTransaction  # type: ignore[import-untyped]
@@ -159,6 +176,17 @@ async def create_report(
     if not checkout_url:
         db.table("reports").delete().eq("id", report_id).execute()
         raise HTTPException(status_code=502, detail="Paddle returned no checkout URL")
+
+    if ph:
+        ph.capture(
+            distinct_id=user_id,
+            event="checkout_initiated",
+            properties={
+                "report_id": report_id,
+                "tier": body.tier,
+                "target_iso2": body.target_iso2.upper(),
+            },
+        )
 
     return CreateReportResponse(
         report_id=report_id,
@@ -211,5 +239,19 @@ async def get_report(
             "compliance": compliance.data,
             "buyers": buyers.data,
         }
+
+        ph = get_posthog()
+        if ph:
+            ph.capture(
+                distinct_id=user_id,
+                event="report_viewed",
+                properties={
+                    "report_id": report_id,
+                    "hs_code": row["hs_code"],
+                    "origin_iso2": row["origin_iso2"],
+                    "target_iso2": row["target_iso2"],
+                    "tier": row["tier"],
+                },
+            )
 
     return report

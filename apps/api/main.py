@@ -3,17 +3,39 @@
 import os
 from contextlib import asynccontextmanager
 
+import sentry_sdk
 from dotenv import load_dotenv
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from sentry_sdk.integrations.fastapi import FastApiIntegration
+from sentry_sdk.integrations.starlette import StarletteIntegration
 
+from posthog_client import init_posthog
 from routers import reports, test_reports, webhooks
 
 load_dotenv()
 
+_sentry_dsn = os.getenv("SENTRY_DSN_API")
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        integrations=[
+            StarletteIntegration(transaction_style="endpoint"),
+            FastApiIntegration(transaction_style="endpoint"),
+        ],
+        traces_sample_rate=0.1,
+        profiles_sample_rate=0.05,
+        environment=os.getenv("RAILWAY_ENVIRONMENT", "development"),
+        release=os.getenv("RAILWAY_GIT_COMMIT_SHA", "local"),
+    )
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    # Initialise PostHog
+    ph = init_posthog()
+    app.state.posthog = ph
+
     # Start APScheduler retention crons
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -35,6 +57,9 @@ async def lifespan(app: FastAPI):
     sched = getattr(app.state, "scheduler", None)
     if sched:
         sched.shutdown(wait=False)
+
+    # Flush PostHog events before exit
+    ph.flush()
 
 
 app = FastAPI(

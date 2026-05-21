@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { cn, formatCurrency, formatPercent, COUNTRY_FLAGS, COUNTRY_NAMES } from "@/lib/utils";
+import { analytics } from "@/lib/analytics";
 import {
   Download,
   Copy,
@@ -53,6 +54,16 @@ export function ReportView({ report: initialReport }: { report: any }) {
     if (!isRunning) return;
 
     const supabase = createClient();
+
+    async function fetchFullReport() {
+      const { data } = await supabase
+        .from("reports")
+        .select("*, report_demand(*), report_compliance(*), report_buyers(*)")
+        .eq("id", report.id)
+        .single();
+      if (data) setReport(data);
+    }
+
     const channel = supabase
       .channel(`report:${report.id}`)
       .on(
@@ -65,11 +76,16 @@ export function ReportView({ report: initialReport }: { report: any }) {
         },
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (payload: any) => {
-          setReport((prev: any) => ({ ...prev, ...payload.new }));
           if (payload.new.current_worker != null) {
             setCompletedWorkers(
               payload.new.status === "complete" ? 5 : payload.new.current_worker
             );
+          }
+          if (payload.new.status === "complete" || payload.new.status === "failed") {
+            // Full re-fetch to get joined child tables (demand, compliance, buyers)
+            fetchFullReport();
+          } else {
+            setReport((prev: any) => ({ ...prev, ...payload.new }));
           }
         }
       )
@@ -149,7 +165,7 @@ export function ReportView({ report: initialReport }: { report: any }) {
             )}
           </Button>
           {report.pdf_url && (
-            <a href={report.pdf_url} target="_blank" rel="noopener noreferrer">
+            <a href={report.pdf_url} target="_blank" rel="noopener noreferrer" onClick={() => analytics.pdfDownloaded(report.id)}>
               <Button size="sm" className="gap-1.5">
                 <Download className="w-4 h-4" /> Download PDF
               </Button>
@@ -521,7 +537,7 @@ export function ReportView({ report: initialReport }: { report: any }) {
           {/* PDF download CTA (bottom) */}
           {report.pdf_url && (
             <div className="flex justify-center pt-4">
-              <a href={report.pdf_url} target="_blank" rel="noopener noreferrer">
+              <a href={report.pdf_url} target="_blank" rel="noopener noreferrer" onClick={() => analytics.pdfDownloaded(report.id)}>
                 <Button size="lg" className="gap-2">
                   <Download className="w-5 h-5" />
                   Download full PDF report

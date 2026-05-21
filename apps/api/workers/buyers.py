@@ -12,6 +12,7 @@ from dotenv import load_dotenv
 from langfuse import observe
 
 from models import BuyerList, BuyerOutput, ManufacturerInput
+from resilience import log_langfuse_error, retry_with_backoff
 from scoring.config_loader import load_sector_config
 from scoring.engine import assign_tier, score_buyer
 
@@ -69,23 +70,26 @@ def _apollo_search(
     }
 
     try:
-        resp = httpx.post(url, json=payload, headers=headers, timeout=30)
+        resp = retry_with_backoff(
+            lambda: httpx.post(url, json=payload, headers=headers, timeout=30),
+            attempts=3,
+            base_delay=2.0,
+            retryable_status=(500, 502, 503, 504, 429),
+            label="apollo_search",
+        )
         if resp.status_code == 401:
-            print("[Apollo] Invalid API key")
+            log_langfuse_error("apollo_auth", ValueError("Invalid Apollo API key"), {})
             return []
         if resp.status_code == 403:
-            print("[Apollo] Endpoint not accessible on current plan — skipping (paid plan required for prospecting)")
+            log_langfuse_error("apollo_plan", ValueError("Apollo endpoint requires paid plan"), {})
             return []
         if resp.status_code == 422:
-            print(f"[Apollo] Validation error: {resp.text[:200]}")
+            log_langfuse_error("apollo_validation", ValueError(resp.text[:200]), {})
             return []
         resp.raise_for_status()
         data = resp.json()
-    except httpx.HTTPError as e:
-        print(f"[Apollo] HTTP error: {e}")
-        return []
     except Exception as e:
-        print(f"[Apollo] Error: {e}")
+        log_langfuse_error("apollo_search", e, {"target": target_iso2})
         return []
 
     buyers = []
@@ -152,7 +156,12 @@ def _pdl_enrich(buyer: dict[str, Any]) -> dict[str, Any]:
     }
 
     try:
-        resp = httpx.get(url, params=params, timeout=15)
+        resp = retry_with_backoff(
+            lambda: httpx.get(url, params=params, timeout=15),
+            attempts=2,
+            base_delay=1.0,
+            label="pdl_enrich",
+        )
         if resp.status_code == 200:
             data = resp.json()
             emails = data.get("data", {}).get("emails", [])
@@ -165,7 +174,7 @@ def _pdl_enrich(buyer: dict[str, Any]) -> dict[str, Any]:
                 buyer["contact_title"] = title
                 buyer["enrichment_source"] = "pdl"
     except Exception as e:
-        print(f"[PDL] Enrichment error for {name} at {domain}: {e}")
+        log_langfuse_error("pdl_enrich", e, {"company": domain, "contact": name})
 
     return buyer
 
@@ -200,7 +209,12 @@ def _fetch_comtrade_mirror(hs_code: str, buyer_countries: list[str]) -> dict[str
         }
 
         try:
-            resp = httpx.get(url, params=params, timeout=30)
+            resp = retry_with_backoff(
+                lambda u=url, p=params: httpx.get(u, params=p, timeout=30),
+                attempts=3,
+                base_delay=2.0,
+                label="comtrade_mirror",
+            )
             if resp.status_code != 200:
                 mirror[country_iso2] = {}
                 continue
@@ -299,15 +313,18 @@ def _perplexity_buyer_signals(
         }
 
         try:
-            resp = httpx.post(url, json=payload, headers=headers, timeout=25)
+            resp = retry_with_backoff(
+                lambda: httpx.post(url, json=payload, headers=headers, timeout=25),
+                attempts=2,
+                base_delay=1.5,
+                label="perplexity_signals",
+            )
             resp.raise_for_status()
             content = resp.json()["choices"][0]["message"]["content"]
-            # Parse JSON from response
             parsed = _parse_signal_json(content)
             signals[company] = parsed
         except Exception as e:
-            if "401" not in str(e):
-                print(f"[Perplexity signals] Error for {company}: {e}")
+            log_langfuse_error("perplexity_signals", e, {"company": company})
             signals[company] = {"job_posting": False, "sourcing_news": False, "summary": ""}
 
     return signals
@@ -403,11 +420,16 @@ def _perplexity_buyer_discovery(
     }
 
     try:
-        resp = httpx.post(url, json=payload, headers=headers, timeout=40)
+        resp = retry_with_backoff(
+            lambda: httpx.post(url, json=payload, headers=headers, timeout=40),
+            attempts=3,
+            base_delay=2.0,
+            label="perplexity_discovery",
+        )
         resp.raise_for_status()
         content = resp.json()["choices"][0]["message"]["content"]
     except Exception as e:
-        print(f"[Perplexity discovery] API error: {e}")
+        log_langfuse_error("perplexity_discovery", e, {"sector": sector_name, "target": target_iso2})
         return []
 
     # Parse JSON array from response
@@ -575,7 +597,12 @@ def _fetch_trade_fair_exhibitors(
     }
 
     try:
-        resp = httpx.get(url, params=params, timeout=20)
+        resp = retry_with_backoff(
+            lambda: httpx.get(url, params=params, timeout=20),
+            attempts=2,
+            base_delay=1.0,
+            label="tentimes",
+        )
         if resp.status_code != 200:
             return fairs
         data = resp.json()
@@ -604,7 +631,7 @@ def _fetch_trade_fair_exhibitors(
                     "exhibitors": exhibitors,
                 })
     except Exception as e:
-        print(f"[10times] Error: {e}")
+        log_langfuse_error("tentimes", e, {"sector": sector, "target": target_iso2})
 
     return fairs
 

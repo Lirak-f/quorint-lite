@@ -6,3 +6,6 @@ ALTER TABLE reports
   ADD COLUMN IF NOT EXISTS action_plan_markdown           TEXT,
   ADD COLUMN IF NOT EXISTS risk_flags_markdown            TEXT,
   ADD COLUMN IF NOT EXISTS current_worker                SMALLINT DEFAULT 0;
+
+-- Enable Supabase Realtime on reports so postgres_changes subscriptions fire
+ALTER PUBLICATION supabase_realtime ADD TABLE reports;

@@ -10,6 +10,7 @@ from typing import Any, Optional
 from dotenv import load_dotenv
 
 from models import ManufacturerInput, ReportSynthesis
+from posthog_client import get_posthog
 
 load_dotenv()
 
@@ -159,7 +160,7 @@ def run_pipeline(
     Returns the final pipeline state dict.
     On error: marks report as failed and returns state with error_message.
     """
-    from pipeline.graph import _make_initial_state, build_pipeline_graph
+    from pipeline.graph import _make_initial_state
 
     state = _make_initial_state(
         report_id=report_id,
@@ -168,30 +169,80 @@ def run_pipeline(
         is_test=is_test,
     )
 
+    from pipeline.graph import (
+        node_w1_market, node_w2_compliance, node_w3_buyers,
+        node_w4_deep_research, node_w5_synthesis,
+    )
+
+    workers = [
+        ("w1_market", node_w1_market, 1),
+        ("w2_compliance", node_w2_compliance, 2),
+        ("w3_buyers", node_w3_buyers, 3),
+        ("w4_deep_research", node_w4_deep_research, 4),
+        ("w5_synthesis", node_w5_synthesis, 5),
+    ]
+
     if not skip_supabase:
-        _update_report_status(report_id, "running")
+        _update_report_status(report_id, "running", worker_num=0)
 
-    # Build the compiled LangGraph
-    pipeline = build_pipeline_graph()
-
-    # Node completion callbacks — write intermediate progress to Supabase
-    worker_names = ["w1_market", "w2_compliance", "w3_buyers", "w4_deep_research", "w5_synthesis"]
-
+    final_state = state
     try:
-        # Run the graph — LangGraph invokes nodes sequentially
-        final_state = pipeline.invoke(state)
+        for worker_key, node_fn, worker_num in workers:
+            final_state = node_fn(final_state)
+            if not skip_supabase:
+                _update_report_status(report_id, "running", worker_num=worker_num)
 
     except Exception as e:
         error_msg = f"{type(e).__name__}: {e}\n{traceback.format_exc()[-800:]}"
         print(f"[Orchestrator] Pipeline failed for report {report_id}: {error_msg}")
+        try:
+            import sentry_sdk as _sentry
+            with _sentry.new_scope() as scope:
+                scope.set_tag("report_id", report_id)
+                scope.set_tag("hs_code", manufacturer.hs_code)
+                scope.set_tag("origin", manufacturer.origin_iso2)
+                scope.set_tag("target", manufacturer.target_iso2)
+                _sentry.capture_exception(e)
+        except Exception:
+            pass
+        ph = get_posthog()
+        if ph:
+            ph.capture(
+                distinct_id=report_id,
+                event="report_failed",
+                properties={
+                    "report_id": report_id,
+                    "hs_code": manufacturer.hs_code,
+                    "origin_iso2": manufacturer.origin_iso2,
+                    "target_iso2": manufacturer.target_iso2,
+                    "tier": tier,
+                    "is_test": is_test,
+                    "error_type": type(e).__name__,
+                },
+            )
         if not skip_supabase:
             _update_report_status(report_id, "failed", error_message=error_msg)
-        return {**state, "status": "failed", "error_message": error_msg}
+        return {**final_state, "status": "failed", "error_message": error_msg}
 
     # Save all worker results to Supabase
     if not skip_supabase:
         _save_worker_results(report_id, final_state)
         _update_report_status(report_id, "complete", worker_num=5)
+
+    ph = get_posthog()
+    if ph:
+        ph.capture(
+            distinct_id=report_id,
+            event="report_completed",
+            properties={
+                "report_id": report_id,
+                "hs_code": manufacturer.hs_code,
+                "origin_iso2": manufacturer.origin_iso2,
+                "target_iso2": manufacturer.target_iso2,
+                "tier": tier,
+                "is_test": is_test,
+            },
+        )
 
     return final_state
 
@@ -202,50 +253,5 @@ def run_pipeline_with_progress(
     tier: str = "full",
     is_test: bool = False,
 ) -> dict[str, Any]:
-    """
-    Run pipeline with per-worker Supabase progress updates.
-    Uses a monkey-patched graph that calls _update_report_status after each node.
-    """
-    from pipeline.graph import _make_initial_state
-
-    state = _make_initial_state(
-        report_id=report_id,
-        manufacturer=manufacturer,
-        tier=tier,
-        is_test=is_test,
-    )
-    _update_report_status(report_id, "running")
-
-    workers = [
-        ("w1_market", "demand_output", 1),
-        ("w2_compliance", "compliance_output", 2),
-        ("w3_buyers", "buyer_list", 3),
-        ("w4_deep_research", "deep_research_output", 4),
-        ("w5_synthesis", "synthesis_output", 5),
-    ]
-
-    from pipeline.graph import (
-        node_w1_market, node_w2_compliance, node_w3_buyers,
-        node_w4_deep_research, node_w5_synthesis,
-    )
-    node_fns = {
-        "w1_market": node_w1_market,
-        "w2_compliance": node_w2_compliance,
-        "w3_buyers": node_w3_buyers,
-        "w4_deep_research": node_w4_deep_research,
-        "w5_synthesis": node_w5_synthesis,
-    }
-
-    for worker_key, output_key, worker_num in workers:
-        try:
-            state = node_fns[worker_key](state)
-            _update_report_status(report_id, "running", worker_num=worker_num)
-        except Exception as e:
-            error_msg = f"Worker {worker_num} ({worker_key}) failed: {type(e).__name__}: {e}"
-            print(f"[Orchestrator] {error_msg}\n{traceback.format_exc()[-600:]}")
-            _update_report_status(report_id, "failed", error_message=error_msg)
-            return {**state, "status": "failed", "error_message": error_msg}
-
-    _save_worker_results(report_id, state)
-    _update_report_status(report_id, "complete")
-    return state
+    """Alias for run_pipeline — progress updates are now built in."""
+    return run_pipeline(report_id=report_id, manufacturer=manufacturer, tier=tier, is_test=is_test)

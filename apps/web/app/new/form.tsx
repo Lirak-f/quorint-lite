@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { cn, COUNTRY_NAMES, COUNTRY_FLAGS, ORIGIN_COUNTRIES } from "@/lib/utils";
 import { CheckCircle2, Search, ChevronRight, ChevronLeft, Loader2 } from "lucide-react";
+import { analytics } from "@/lib/analytics";
 
 type Step = 1 | 2 | 3;
 
@@ -146,6 +147,7 @@ export function NewReportForm() {
   async function handleCheckout() {
     setSubmitting(true);
     try {
+      analytics.reportCreated(data.hsCode, data.originIso2, data.targetIso2, data.tier);
       const res = await fetch("/api/checkout", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -550,7 +552,7 @@ export function NewReportForm() {
             <div className="grid sm:grid-cols-2 gap-4 mb-8">
               {/* Starter */}
               <button
-                onClick={() => setData((d) => ({ ...d, tier: "starter" }))}
+                onClick={() => { setData((d) => ({ ...d, tier: "starter" })); analytics.tierSelected("starter", 29); }}
                 className={cn(
                   "text-left rounded-xl border-2 p-5 transition-all",
                   data.tier === "starter"
@@ -597,7 +599,7 @@ export function NewReportForm() {
 
               {/* Full */}
               <button
-                onClick={() => setData((d) => ({ ...d, tier: "full" }))}
+                onClick={() => { setData((d) => ({ ...d, tier: "full" })); analytics.tierSelected("full", 49); }}
                 className={cn(
                   "text-left rounded-xl border-2 p-5 transition-all relative",
                   data.tier === "full"

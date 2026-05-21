@@ -3,6 +3,7 @@ import { Geist } from "next/font/google";
 import "./globals.css";
 import { Nav } from "@/components/nav";
 import { PaddleProvider } from "@/components/paddle-provider";
+import { AnalyticsProvider } from "@/components/analytics-provider";
 import { createClient } from "@/lib/supabase/server";
 
 const geist = Geist({
@@ -29,9 +30,11 @@ export default async function RootLayout({
   return (
     <html lang="en" className={`${geist.variable} h-full`}>
       <body className="min-h-full flex flex-col bg-slate-50">
-        <PaddleProvider />
-        <Nav userEmail={user?.email} />
-        <main className="flex-1">{children}</main>
+        <AnalyticsProvider>
+          <PaddleProvider />
+          <Nav userEmail={user?.email} />
+          <main className="flex-1">{children}</main>
+        </AnalyticsProvider>
       </body>
     </html>
   );

@@ -57,9 +57,9 @@ def parse_args() -> argparse.Namespace:
 
 
 def parse_worker_set(workers_str: str | None) -> set[int]:
-    """Parse --workers flag into a set of ints. None → all available."""
+    """Parse --workers flag into a set of ints. None → all 5 workers."""
     if workers_str is None:
-        return {1, 2, 3}
+        return {1, 2, 3, 4, 5}
     try:
         return {int(w.strip()) for w in workers_str.split(",")}
     except ValueError:
@@ -278,6 +278,13 @@ def main() -> None:
         tier=args.tier,
     )
 
+    # Running state — set by each worker, used by downstream workers
+    demand_output = None
+    compliance_output = None
+    buyer_output = None
+    deep_research_output = None
+    synthesis_output = None
+
     # ── Worker 1 ──────────────────────────────────────────────────────────
     if 1 in workers_to_run:
         from workers.market_demand import run_market_demand
@@ -333,10 +340,148 @@ def main() -> None:
         console.print(f"[dim]Worker 3 done in {time.time() - start:.1f}s[/dim]")
         print_buyer_output(buyer_output, verbose=args.verbose)
 
+    # ── Worker 4 ──────────────────────────────────────────────────────────
+    if 4 in workers_to_run:
+        from workers.deep_research import run_deep_research
+        console.rule("[cyan]Worker 4 — Deep market research[/cyan]")
+        start = time.time()
+        with console.status("[bold green]Running Worker 4 (Perplexity deep research ~2min)..."):
+            try:
+                deep_research_output = run_deep_research(
+                    hs_code=args.hs,
+                    origin_iso2=args.origin,
+                    target_iso2=args.target,
+                )
+            except Exception as e:
+                console.print(f"[bold red]Worker 4 failed:[/bold red] {e}")
+                sys.exit(1)
+        console.print(f"[dim]Worker 4 done in {time.time() - start:.1f}s[/dim]")
+        if deep_research_output.market_narrative:
+            excerpt = deep_research_output.market_narrative[:600]
+            console.print(Panel(excerpt + "…", title="Worker 4 — Deep Research Excerpt", border_style="blue"))
+        if deep_research_output.sources:
+            console.print(f"[dim]{len(deep_research_output.sources)} sources cited[/dim]")
+        if deep_research_output.additional_buyers:
+            console.print(f"[dim]{len(deep_research_output.additional_buyers)} additional buyers extracted from narrative[/dim]")
+    else:
+        from models import DeepResearchOutput
+        deep_research_output = DeepResearchOutput(market_narrative="", sources=[], additional_buyers=[])
+
+    # ── Worker 5 ──────────────────────────────────────────────────────────
+    if 5 in workers_to_run:
+        if demand_output is None or compliance_output is None or buyer_output is None:
+            console.print("[bold red]Worker 5 requires Workers 1, 2, 3 to have run first.[/bold red]")
+            sys.exit(1)
+        from workers.synthesis import run_synthesis
+        console.rule("[cyan]Worker 5 — Report synthesis[/cyan]")
+        start = time.time()
+        with console.status("[bold green]Running Worker 5 (Claude synthesis)..."):
+            try:
+                synthesis_output = run_synthesis(
+                    manufacturer=manufacturer,
+                    demand=demand_output,
+                    compliance=compliance_output,
+                    buyer_list=buyer_output,
+                    deep_research=deep_research_output,
+                    tier=args.tier,
+                )
+            except Exception as e:
+                console.print(f"[bold red]Worker 5 failed:[/bold red] {e}")
+                sys.exit(1)
+        console.print(f"[dim]Worker 5 done in {time.time() - start:.1f}s[/dim]")
+
+        # Print working capital
+        wc = synthesis_output.working_capital
+        console.print(Panel(wc.plain_english, title="Working Capital Estimate", border_style="yellow"))
+
+        # Print first contact email
+        if synthesis_output.first_contact_email:
+            console.print(Panel(
+                synthesis_output.first_contact_email,
+                title="Section 5 — First Contact Email",
+                border_style="green",
+            ))
+
+        # Print action plan excerpt
+        if synthesis_output.action_plan_markdown:
+            console.print(Panel(
+                synthesis_output.action_plan_markdown[:800],
+                title="Section 6 — 90-Day Action Plan (excerpt)",
+                border_style="cyan",
+            ))
+
+        # Print risk flags
+        if synthesis_output.risk_flags_markdown:
+            console.print(Panel(
+                synthesis_output.risk_flags_markdown,
+                title="Section 7 — Risk Flags",
+                border_style="red",
+            ))
+
+        # Save full report markdown
+        import os
+        report_path = f"report_{args.hs}_{args.origin}_{args.target}.md"
+        with open(report_path, "w", encoding="utf-8") as f:
+            f.write(synthesis_output.full_report_markdown)
+        console.print(f"[green]Full report saved to:[/green] {report_path}")
+
+        # Generate PDF if requested
+        if args.pdf:
+            _generate_pdf(synthesis_output.full_report_markdown, args.hs, args.origin, args.target, console)
+    else:
+        synthesis_output = None
+
     console.rule("[bold green]Done[/bold green]")
 
-    if args.pdf:
-        console.print("[yellow]--pdf flag set — PDF generation not yet implemented.[/yellow]")
+
+def _generate_pdf(
+    markdown_content: str,
+    hs_code: str,
+    origin: str,
+    target: str,
+    console,
+) -> None:
+    """Convert report markdown to PDF using WeasyPrint."""
+    try:
+        import markdown
+        from weasyprint import HTML, CSS
+
+        html_body = markdown.markdown(
+            markdown_content,
+            extensions=["tables", "fenced_code"],
+        )
+        pdf_html = f"""<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  body {{ font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 11px; line-height: 1.5; color: #222; max-width: 800px; margin: 0 auto; padding: 20px; }}
+  h1 {{ font-size: 22px; color: #1a1a2e; border-bottom: 2px solid #e74c3c; padding-bottom: 8px; }}
+  h2 {{ font-size: 17px; color: #1a1a2e; border-bottom: 1px solid #ddd; padding-bottom: 4px; margin-top: 28px; }}
+  h3 {{ font-size: 14px; color: #333; margin-top: 16px; }}
+  h4 {{ font-size: 12px; color: #555; margin-top: 12px; }}
+  table {{ border-collapse: collapse; width: 100%; margin: 12px 0; font-size: 10px; }}
+  th {{ background: #1a1a2e; color: white; padding: 6px 8px; text-align: left; }}
+  td {{ padding: 5px 8px; border-bottom: 1px solid #eee; }}
+  tr:nth-child(even) {{ background: #f9f9f9; }}
+  blockquote {{ background: #fff8e7; border-left: 4px solid #f0a500; padding: 8px 12px; margin: 12px 0; font-size: 10px; }}
+  code {{ background: #f4f4f4; padding: 2px 4px; border-radius: 3px; font-size: 9px; }}
+  hr {{ border: none; border-top: 1px solid #ddd; margin: 20px 0; }}
+  @page {{ margin: 1.5cm 1.5cm 1.5cm 1.5cm; }}
+</style>
+</head>
+<body>
+{html_body}
+</body>
+</html>"""
+
+        pdf_path = f"report_{hs_code}_{origin}_{target}.pdf"
+        HTML(string=pdf_html).write_pdf(pdf_path)
+        console.print(f"[green]PDF generated:[/green] {pdf_path}")
+    except ImportError as e:
+        console.print(f"[yellow]PDF generation skipped — install weasyprint and markdown: {e}[/yellow]")
+    except Exception as e:
+        console.print(f"[red]PDF generation failed:[/red] {e}")
 
 
 if __name__ == "__main__":

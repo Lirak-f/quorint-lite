@@ -10,6 +10,8 @@ from fastapi import APIRouter, HTTPException, Request
 
 load_dotenv()
 
+from posthog_client import get_posthog
+
 router = APIRouter()
 
 
@@ -23,7 +25,7 @@ def _supabase():
 
 
 def _enqueue_report_job(report_id: str) -> None:
-    """Push report job onto BullMQ Redis queue."""
+    """Push report job onto BullMQ Redis queue, falling back to an inline background thread if Redis is unreachable."""
     db = _supabase()
 
     result = db.table("reports").select("*").eq("id", report_id).execute()
@@ -32,9 +34,7 @@ def _enqueue_report_job(report_id: str) -> None:
         return
 
     row = result.data[0]
-
-    from jobqueue.jobs import enqueue_report
-    enqueue_report({
+    job_data = {
         "report_id": report_id,
         "hs_code": row["hs_code"],
         "origin_iso2": row["origin_iso2"],
@@ -44,7 +44,31 @@ def _enqueue_report_job(report_id: str) -> None:
         "is_test": False,
         "certifications": row.get("certifications") or [],
         "capacity_units": row.get("capacity_units") or "<100/mo",
-    })
+    }
+
+    try:
+        from jobqueue.jobs import enqueue_report
+        enqueue_report(job_data)
+        print(f"[Webhook] Enqueued report {report_id} to Redis queue")
+    except Exception as redis_err:
+        print(f"[Webhook] Redis unavailable ({redis_err}) — running pipeline inline in background thread")
+        import threading
+        from models import ManufacturerInput
+        from pipeline.orchestrator import run_pipeline
+
+        def _run():
+            manufacturer = ManufacturerInput(
+                hs_code=job_data["hs_code"],
+                origin_iso2=job_data["origin_iso2"],
+                target_iso2=job_data["target_iso2"],
+                unit_cost_eur=job_data["unit_cost_eur"],
+                tier=job_data["tier"],
+                certifications=job_data["certifications"],
+                capacity_units=job_data["capacity_units"],
+            )
+            run_pipeline(report_id=report_id, manufacturer=manufacturer, tier=job_data["tier"], is_test=False)
+
+        threading.Thread(target=_run, daemon=True).start()
 
 
 @router.post("/webhooks/paddle")
@@ -113,10 +137,33 @@ def _handle_transaction_completed(data: dict[str, Any]) -> None:
 
     print(f"[Webhook] Payment confirmed for report {report_id} — enqueuing job")
 
+    ph = get_posthog()
+    if ph:
+        ph.capture(
+            distinct_id=report_id,
+            event="payment_completed",
+            properties={
+                "report_id": report_id,
+                "paddle_transaction_id": paddle_transaction_id,
+            },
+        )
+
     try:
         _enqueue_report_job(report_id)
+        if ph:
+            ph.capture(
+                distinct_id=report_id,
+                event="report_pipeline_started",
+                properties={"report_id": report_id},
+            )
     except Exception as e:
         print(f"[Webhook] Failed to enqueue report {report_id}: {e}")
+        if ph:
+            ph.capture(
+                distinct_id=report_id,
+                event="report_pipeline_failed",
+                properties={"report_id": report_id, "error": str(e)},
+            )
         db.table("reports").update({
             "status": "failed",
             "error_message": f"Failed to start report after payment: {e}",
@@ -148,3 +195,11 @@ def _handle_subscription_event(event: str, data: dict[str, Any]) -> None:
             }).eq("paddle_subscription_id", paddle_subscription_id).execute()
     except Exception as e:
         print(f"[Webhook] Could not update manufacturer subscription status: {e}")
+
+    ph = get_posthog()
+    if ph:
+        ph.capture(
+            distinct_id=paddle_subscription_id,
+            event="subscription_activated" if is_active else "subscription_canceled",
+            properties={"paddle_subscription_id": paddle_subscription_id},
+        )

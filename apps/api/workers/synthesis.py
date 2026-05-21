@@ -12,6 +12,8 @@ from anthropic import Anthropic
 from dotenv import load_dotenv
 from langfuse import observe
 
+from resilience import log_langfuse_error, retry_with_backoff
+
 from models import (
     BuyerList,
     BuyerOutput,
@@ -404,19 +406,24 @@ def _call_claude_with_tool(
 
     client = Anthropic(api_key=api_key)
     try:
-        resp = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=max_tokens,
-            system=system,
-            tools=[tool],
-            tool_choice={"type": "tool", "name": tool["name"]},
-            messages=[{"role": "user", "content": prompt}],
+        resp = retry_with_backoff(
+            lambda: client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=max_tokens,
+                system=system,
+                tools=[tool],
+                tool_choice={"type": "tool", "name": tool["name"]},
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            attempts=3,
+            base_delay=2.0,
+            label=f"claude_{tool['name']}",
         )
         for block in resp.content:
             if block.type == "tool_use" and block.name == tool["name"]:
                 return block.input
     except Exception as e:
-        print(f"[Worker 5] Claude tool call failed ({tool['name']}): {e}")
+        log_langfuse_error(f"claude_{tool['name']}", e, {})
 
     return None
 
@@ -576,9 +583,8 @@ def _placeholder_section7(
         {
             "title": f"Price pressure from established suppliers in {target_country}",
             "description": (
-                f"Top suppliers ({', '.join(s.country for s in demand.top_suppliers[:2])} "
-                "if top_suppliers else 'existing EU suppliers') "
-                "have incumbent relationships. Compete on FSC, proximity, and personalised service — not price."
+                f"Top suppliers ({', '.join(s.country for s in demand.top_suppliers[:2]) if demand.top_suppliers else 'existing EU producers'}) "
+                "have incumbent relationships. Compete on FSC certification, EU proximity, and personalised service — not price."
             ),
             "severity": "medium",
         },
@@ -919,7 +925,37 @@ def run_synthesis(
         max_tokens=2500,
     )
     if not section5:
-        print("[Worker 5] Claude Section 5 failed — using placeholder")
+        gemini_s5_schema = {
+            "type": "OBJECT",
+            "properties": {
+                "email_subject_variants": {"type": "ARRAY", "items": {"type": "STRING"}},
+                "email_body": {"type": "STRING"},
+                "follow_up_day3": {"type": "STRING"},
+                "follow_up_day7": {"type": "STRING"},
+                "follow_up_day14": {"type": "STRING"},
+                "objection_handling": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {"objection": {"type": "STRING"}, "response": {"type": "STRING"}},
+                        "required": ["objection", "response"],
+                    },
+                },
+                "origin_positioning": {"type": "STRING"},
+                "attachments_to_include": {"type": "ARRAY", "items": {"type": "STRING"}},
+            },
+            "required": ["email_subject_variants", "email_body", "follow_up_day3",
+                         "follow_up_day7", "follow_up_day14", "objection_handling",
+                         "origin_positioning", "attachments_to_include"],
+        }
+        section5 = _call_gemini_synthesis(
+            system=section5_system,
+            prompt_data=json.loads(section5_prompt),
+            task_name="section5",
+            response_schema=gemini_s5_schema,
+        )
+    if not section5:
+        print("[Worker 5] All LLMs failed for Section 5 — using placeholder")
         section5 = _placeholder_section5(manufacturer, target_country, target_language)
 
     # Step 3: Section 6 — 90-day action plan (Claude Sonnet 4.6)
@@ -940,7 +976,46 @@ def run_synthesis(
         max_tokens=3000,
     )
     if not section6:
-        print("[Worker 5] Claude Section 6 failed — using placeholder")
+        gemini_s6_schema = {
+            "type": "OBJECT",
+            "properties": {
+                "weeks": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "week_number": {"type": "INTEGER"},
+                            "title": {"type": "STRING"},
+                            "tasks": {
+                                "type": "ARRAY",
+                                "items": {
+                                    "type": "OBJECT",
+                                    "properties": {
+                                        "owner": {"type": "STRING"},
+                                        "action": {"type": "STRING"},
+                                        "definition_of_done": {"type": "STRING"},
+                                        "cash_note": {"type": "STRING"},
+                                    },
+                                    "required": ["owner", "action", "definition_of_done"],
+                                },
+                            },
+                        },
+                        "required": ["week_number", "title", "tasks"],
+                    },
+                },
+                "go_no_go_checkpoint": {"type": "STRING"},
+                "trade_fair_recommendation": {"type": "STRING"},
+            },
+            "required": ["weeks", "go_no_go_checkpoint"],
+        }
+        section6 = _call_gemini_synthesis(
+            system=_SECTION6_SYSTEM,
+            prompt_data=json.loads(section6_prompt),
+            task_name="section6",
+            response_schema=gemini_s6_schema,
+        )
+    if not section6:
+        print("[Worker 5] All LLMs failed for Section 6 — using placeholder")
         section6 = _placeholder_section6(compliance, buyer_list, working_capital)
 
     # Step 4: Section 7 — Risk flags (Claude Sonnet 4.6)
@@ -960,7 +1035,33 @@ def run_synthesis(
         max_tokens=1500,
     )
     if not section7:
-        print("[Worker 5] Claude Section 7 failed — using placeholder")
+        gemini_s7_schema = {
+            "type": "OBJECT",
+            "properties": {
+                "risks": {
+                    "type": "ARRAY",
+                    "items": {
+                        "type": "OBJECT",
+                        "properties": {
+                            "title": {"type": "STRING"},
+                            "description": {"type": "STRING"},
+                            "severity": {"type": "STRING"},
+                        },
+                        "required": ["title", "description", "severity"],
+                    },
+                },
+                "alternative_market": {"type": "STRING"},
+            },
+            "required": ["risks"],
+        }
+        section7 = _call_gemini_synthesis(
+            system=_SECTION7_SYSTEM,
+            prompt_data=json.loads(section7_prompt),
+            task_name="section7",
+            response_schema=gemini_s7_schema,
+        )
+    if not section7:
+        print("[Worker 5] All LLMs failed for Section 7 — using placeholder")
         section7 = _placeholder_section7(manufacturer, demand, compliance, origin_country, target_country)
 
     # Step 5: Assemble complete report markdown

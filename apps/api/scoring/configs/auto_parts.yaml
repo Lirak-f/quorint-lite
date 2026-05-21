@@ -1,0 +1,149 @@
+sector_name: auto_parts
+hs_chapters: ["87"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Kfz-Ersatzteile Großhandel", "Autoteile Großhandel Deutschland", "Fahrzeugteile Großhandel"]
+  AT: ["Autoteile Großhandel Österreich", "Kfz-Teile Großhandel Wien"]
+  IT: ["ricambi auto ingrosso", "pezzi di ricambio auto all'ingrosso", "componenti auto ingrosso"]
+  FR: ["pièces auto grossiste", "pièces détachées automobile grossiste"]
+  NL: ["auto onderdelen groothandel", "reserveonderdelen auto groothandel"]
+  CH: ["Autoteile Grosshandel Schweiz", "Kfz-Ersatzteile Grosshandel"]
+
+retail_to_wholesale_ratio: 0.55
+typical_retailer_margin: 0.40
+
+compliance_checks:
+  - id: ece_type_approval
+    name: ECE Type Approval / e-Mark Certification
+    type: mandatory
+    critical: true
+    cost_low_eur: 5000
+    cost_high_eur: 25000
+    lead_time_weeks_min: 12
+    lead_time_weeks_max: 30
+    providers:
+      - "TÜV SÜD Auto Service GmbH: +49 89 5791 0"
+      - "TÜV Rheinland Kraftfahrt: +49 221 806 0"
+      - "KBA (Federal Motor Transport Authority DE): +49 6142 403 0"
+    note: "UN ECE Regulations (UNECE WP.29) — type approval is mandatory for road vehicle components entering EU markets. The specific regulation number depends on the part (e.g. ECE R10 for EMC, ECE R90 for brake pads). Obtain the exact regulation for your HS6 code before starting."
+
+  - id: reach_auto
+    name: REACH Chemical Compliance (automotive)
+    type: mandatory
+    critical: false
+    cost_low_eur: 1000
+    cost_high_eur: 4000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 10
+    providers:
+      - "TÜV SÜD Chemical Services"
+      - "Bureau Veritas REACH consulting"
+      - "Eurofins Product Testing"
+    note: "EU REACH Regulation (EC) No 1907/2006 — automotive parts must be tested for SVHC (Substances of Very High Concern). IMDS (International Material Data System) declaration required by OEM buyers."
+
+  - id: iatf_16949
+    name: IATF 16949 Quality Management (OEM supply)
+    type: commercial_expected
+    critical: false
+    cost_low_eur: 8000
+    cost_high_eur: 25000
+    lead_time_weeks_min: 26
+    lead_time_weeks_max: 52
+    providers:
+      - "Bureau Veritas: bureauveritas.com/automotive"
+      - "SGS IATF certification"
+      - "TÜV Rheinland Automotive"
+    note: "Required only if targeting Tier 1/2 OEM suppliers. For aftermarket distributors, ISO 9001 alone is sufficient. Do not invest in IATF until you have a confirmed OEM lead."
+
+  - id: iso_9001
+    name: ISO 9001:2015 Quality Management System
+    type: commercial_expected
+    critical: false
+    cost_low_eur: 3000
+    cost_high_eur: 8000
+    lead_time_weeks_min: 12
+    lead_time_weeks_max: 26
+    providers:
+      - "Bureau Veritas Germany: +49 40 3233 0"
+      - "SGS Germany"
+      - "TÜV Austria: +43 1 514 07"
+    note: "Aftermarket distributors require ISO 9001 as baseline quality assurance. Start this immediately — it is the prerequisite for most distributor partnerships."
+
+  - id: rohs_automotive
+    name: RoHS Compliance (if electrical/electronic components)
+    type: mandatory
+    critical: false
+    cost_low_eur: 500
+    cost_high_eur: 2000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 6
+    providers:
+      - "SGS Electronics Compliance"
+      - "Eurofins E&E Testing"
+    note: "EU RoHS Directive 2011/65/EU — applies to electrical and electronic components in vehicles. Only relevant for parts with electronic content."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "sourcing"
+    - "supply chain"
+    - "parts manager"
+    - "aftermarket"
+  company_keywords:
+    - "autoteile"
+    - "kfz"
+    - "auto parts"
+    - "automotive"
+    - "ricambi"
+    - "pièces auto"
+    - "wholesale"
+    - "distributor"
+    - "importer"
+    - "aftermarket"
+    - "spare parts"
+    - "fahrzeug"
+  company_size_ranges: ["11-50", "51-200", "201-500", "501-1000"]
+
+trade_fairs:
+  - name: "Automechanika Frankfurt"
+    country: DE
+    city: Frankfurt
+    month: 9
+    url: "https://www.automechanika.messefrankfurt.com"
+  - name: "Automechanika Milan"
+    country: IT
+    city: Milan
+    month: 5
+    url: "https://www.automechanika-milan.com"
+  - name: "Reifen Essen"
+    country: DE
+    city: Essen
+    month: 5
+    url: "https://www.reifen.messeessen.de"
+  - name: "Autopromotec Bologna"
+    country: IT
+    city: Bologna
+    month: 5
+    url: "https://www.autopromotec.com"
+  - name: "Vienna Motor Show"
+    country: AT
+    city: Vienna
+    month: 3
+
+typical_first_order_units: 200
+typical_compliance_cost_eur: 15000
+sample_shipping_cost_eur: 400
+
+competitor_query_template: >
+  Who are the top 3-5 auto parts and automotive component wholesale manufacturers
+  currently supplying {target_country} distributors and aftermarket importers in 2025?
+  Focus on suppliers from Eastern Europe, Turkey, and the Balkans.
+  For each: country of origin, approximate wholesale price range per unit,
+  certifications held (ECE, ISO 9001, IATF), and which distributors they supply.
+  Cite sources.

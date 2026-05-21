@@ -15,6 +15,7 @@ from langfuse import observe
 from supabase import create_client
 
 from models import DemandOutput, LandedCostBreakdown, TopSupplier
+from resilience import log_langfuse_error, retry_with_backoff
 from scoring.config_loader import load_sector_config
 
 load_dotenv()
@@ -51,6 +52,12 @@ def _supabase_client():
 # Step 1-helper: UN Comtrade
 # ─────────────────────────────────────────
 
+def _do_comtrade_get(url: str, params: dict) -> httpx.Response:
+    resp = httpx.get(url, params=params, timeout=30)
+    resp.raise_for_status()
+    return resp
+
+
 def _fetch_comtrade(hs_code: str, target_iso2: str) -> dict[str, Any]:
     """
     Fetch import flows for the HS code into target_iso2 using the Comtrade v2 free API.
@@ -76,10 +83,15 @@ def _fetch_comtrade(hs_code: str, target_iso2: str) -> dict[str, Any]:
     }
 
     try:
-        resp = httpx.get(url, params=params, timeout=30)
-        resp.raise_for_status()
+        resp = retry_with_backoff(
+            lambda: _do_comtrade_get(url, params),
+            attempts=3,
+            base_delay=2.0,
+            label="comtrade",
+        )
         data = resp.json()
     except Exception as e:
+        log_langfuse_error("comtrade", e, {"hs_code": hs6, "target": target_iso2})
         return {"error": str(e), "import_value_usd": None, "cagr_5yr": None, "top_suppliers": []}
 
     records = data.get("data", [])
@@ -161,15 +173,19 @@ def _fetch_wits_tariff(hs_code: str, origin_iso2: str, target_iso2: str) -> dict
     for flow_type, code in [("preferential", "PREF"), ("mfn", "MFN")]:
         url = f"{base}/reporter/{target_iso2}/partner/{origin_iso2}/product/{hs6}/indicator/AHS"
         try:
-            resp = httpx.get(url, timeout=20, follow_redirects=True)
+            resp = retry_with_backoff(
+                lambda u=url: httpx.get(u, timeout=20, follow_redirects=True),
+                attempts=3,
+                base_delay=1.5,
+                label="wits_tariff",
+            )
             if resp.status_code == 200:
-                # WITS returns XML; parse the first numeric value
                 text = resp.text
                 match = re.search(r"<generic:ObsValue value=\"([0-9.]+)\"", text)
                 if match:
                     results[f"tariff_{flow_type}"] = float(match.group(1)) / 100
-        except Exception:
-            pass
+        except Exception as e:
+            log_langfuse_error("wits_tariff", e, {"flow": flow_type, "hs6": hs6})
 
     # Kosovo–EU: CEFTA agreement, furniture typically 0% preferential
     if origin_iso2 == "XK" and target_iso2 in _EUR_ZONE:
@@ -196,13 +212,18 @@ def _fetch_oec_rca(hs_code: str, origin_iso2: str) -> Optional[float]:
     iso3 = _iso2_to_iso3(origin_iso2)
     url = f"https://oec.world/api/json/eci/rca/{iso3}/hs/{hs4}/"
     try:
-        resp = httpx.get(url, timeout=15)
+        resp = retry_with_backoff(
+            lambda: httpx.get(url, timeout=15),
+            attempts=2,
+            base_delay=1.0,
+            label="oec_rca",
+        )
         if resp.status_code == 200:
             data = resp.json()
             rca = data.get("rca") or data.get("data", [{}])[0].get("rca")
             return round(float(rca), 3) if rca is not None else None
-    except Exception:
-        pass
+    except Exception as e:
+        log_langfuse_error("oec_rca", e, {"origin": origin_iso2, "hs4": hs4})
     return None
 
 
@@ -232,7 +253,12 @@ def _fetch_wdi(target_iso2: str) -> dict[str, Any]:
     for field, ind in indicators.items():
         url = base.format(iso=target_iso2, ind=ind)
         try:
-            resp = httpx.get(url, timeout=15)
+            resp = retry_with_backoff(
+                lambda u=url: httpx.get(u, timeout=15),
+                attempts=2,
+                base_delay=1.0,
+                label="wdi",
+            )
             if resp.status_code == 200:
                 data = resp.json()
                 records = data[1] if len(data) > 1 else []
@@ -241,8 +267,8 @@ def _fetch_wdi(target_iso2: str) -> dict[str, Any]:
                     if val is not None:
                         results[field] = float(val)
                         break
-        except Exception:
-            pass
+        except Exception as e:
+            log_langfuse_error("wdi", e, {"target": target_iso2, "indicator": ind})
     return results
 
 
@@ -288,7 +314,12 @@ def _fetch_google_shopping_prices(
             "num": "20",
         }
         try:
-            resp = httpx.get(url, params=params, timeout=45)
+            resp = retry_with_backoff(
+                lambda u=url, p=params: httpx.get(u, params=p, timeout=45),
+                attempts=2,
+                base_delay=2.0,
+                label="scraperapi",
+            )
             if resp.status_code != 200:
                 continue
             html = resp.text
@@ -364,11 +395,17 @@ def _fetch_competitor_narrative(query_template: str, target_iso2: str) -> Option
         "temperature": 0.1,
     }
     try:
-        resp = httpx.post(url, json=payload, headers=headers, timeout=30)
+        resp = retry_with_backoff(
+            lambda: httpx.post(url, json=payload, headers=headers, timeout=30),
+            attempts=3,
+            base_delay=2.0,
+            label="perplexity_competitor",
+        )
         resp.raise_for_status()
         return resp.json()["choices"][0]["message"]["content"]
     except Exception as e:
-        return f"[Perplexity error: {e}]"
+        log_langfuse_error("perplexity_competitor", e, {"target": target_iso2})
+        return None
 
 
 # ─────────────────────────────────────────
@@ -394,20 +431,21 @@ def _fetch_fx_volatility(origin_iso2: str) -> Optional[float]:
     url = f"https://v6.exchangerate-api.com/v6/{api_key}/history/{currency}/EUR"
     # ExchangeRate-API free tier only provides current rate; approximate with current rate
     try:
-        resp = httpx.get(
-            f"https://v6.exchangerate-api.com/v6/{api_key}/latest/{currency}",
-            timeout=15,
+        fx_url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/{currency}"
+        resp = retry_with_backoff(
+            lambda: httpx.get(fx_url, timeout=15),
+            attempts=3,
+            base_delay=1.0,
+            label="exchangerate_api",
         )
         resp.raise_for_status()
         data = resp.json()
         eur_rate = data.get("conversion_rates", {}).get("EUR")
         if eur_rate:
-            # Approximate 90-day volatility as ±3% for RSD/BAM/MKD (stable pegs)
-            # ±8% for ALL (Albanian lek, more volatile)
             volatility = 0.08 if currency == "ALL" else 0.03
             return round(volatility, 4)
-    except Exception:
-        pass
+    except Exception as e:
+        log_langfuse_error("exchangerate_api", e, {"currency": currency})
     return None
 
 
@@ -416,7 +454,7 @@ def _fetch_fx_volatility(origin_iso2: str) -> Optional[float]:
 # ─────────────────────────────────────────
 
 def _fetch_freight(origin_iso2: str, target_iso2: str) -> dict[str, Any]:
-    """Query freight_benchmarks table in Supabase."""
+    """Query freight_benchmarks table in Supabase. Critical — raises on failure."""
     try:
         client = _supabase_client()
         result = (
@@ -428,12 +466,20 @@ def _fetch_freight(origin_iso2: str, target_iso2: str) -> dict[str, Any]:
             .execute()
         )
         row = result.data
+        if not row:
+            log_langfuse_error(
+                "freight_missing",
+                ValueError(f"No freight benchmark for {origin_iso2}→{target_iso2}"),
+                {"origin": origin_iso2, "target": target_iso2},
+            )
+            return {"freight_low_eur": None, "freight_high_eur": None, "freight_mode": None}
         return {
             "freight_low_eur": row["rate_low_eur"],
             "freight_high_eur": row["rate_high_eur"],
             "freight_mode": row["mode"],
         }
     except Exception as e:
+        log_langfuse_error("freight_lookup", e, {"origin": origin_iso2, "target": target_iso2})
         return {
             "freight_low_eur": None,
             "freight_high_eur": None,

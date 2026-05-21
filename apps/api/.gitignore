@@ -40,6 +40,8 @@ pdf/*.pdf
 data/*.json
 data/*.csv
 data/*.parquet
+report_*.pdf
+report_*.md
 
 # IDE
 .idea/

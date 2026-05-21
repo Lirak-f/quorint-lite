@@ -1,0 +1,147 @@
+sector_name: textiles_apparel
+hs_chapters: ["61", "62", "63"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Herrenhemd Baumwolle Großhandel", "Damenbluse Großhandel Textil", "Bekleidung Großhandel Europa"]
+  AT: ["Herrenhemd Großhandel Österreich", "Textilien Großhandel Wien"]
+  IT: ["camicia uomo ingrosso", "abbigliamento ingrosso Italia", "camicie cotone all'ingrosso"]
+  FR: ["chemise homme gros", "vêtements grossiste France", "textile grossiste Paris"]
+  NL: ["herenoverhemd groothandel", "kleding groothandel Nederland"]
+  CH: ["Herrenhemd Grosshandel Schweiz", "Textilien Grosshandel"]
+
+retail_to_wholesale_ratio: 0.35
+typical_retailer_margin: 0.50
+
+compliance_checks:
+  - id: reach_textiles
+    name: REACH Chemical Safety (textiles)
+    type: mandatory
+    critical: true
+    cost_low_eur: 300
+    cost_high_eur: 1200
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 6
+    providers:
+      - "SGS Germany: +49 40 30 10 30"
+      - "Bureau Veritas Textiles: +49 2161 695 0"
+      - "Intertek Apparel: +49 421 944 02 0"
+    note: "EU REACH Regulation (EC) No 1907/2006 — test for restricted substances (azo dyes, formaldehyde, heavy metals). Required before EU market entry."
+
+  - id: oeko_tex
+    name: OEKO-TEX Standard 100 Certification
+    type: commercial_expected
+    critical: false
+    cost_low_eur: 800
+    cost_high_eur: 2500
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 10
+    providers:
+      - "OEKO-TEX Association: oeko-tex.com/en/apply-now"
+      - "Hohenstein Institute Germany: +49 7143 271 0"
+      - "Bureau Veritas OEKO-TEX member"
+    note: "Major EU clothing retailers (H&M, Zalando, C&A) require OEKO-TEX from suppliers. Competitive disadvantage without it."
+
+  - id: ce_ppe
+    name: CE Marking (if personal protective equipment)
+    type: mandatory
+    critical: false
+    cost_low_eur: 1500
+    cost_high_eur: 5000
+    lead_time_weeks_min: 6
+    lead_time_weeks_max: 16
+    providers:
+      - "TÜV Rheinland: +49 221 806 0"
+      - "SGS Germany"
+      - "Intertek"
+    note: "Only required if product falls under PPE Regulation (EU) 2016/425 — e.g. high-visibility vests, protective clothing. Standard apparel exempt."
+
+  - id: grs_recycled
+    name: Global Recycled Standard (GRS) — if recycled content claimed
+    type: recommended
+    critical: false
+    cost_low_eur: 500
+    cost_high_eur: 1800
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 8
+    providers:
+      - "Control Union Certifications: +31 50 525 28 35"
+      - "Bureau Veritas"
+    note: "Required only if marketing recycled-content garments. Growing buyer requirement in German/Austrian sustainable fashion segment."
+
+  - id: eu_ecolabel_textiles
+    name: EU Ecolabel for Textiles
+    type: recommended
+    critical: false
+    cost_low_eur: 1000
+    cost_high_eur: 3000
+    lead_time_weeks_min: 8
+    lead_time_weeks_max: 20
+    providers:
+      - "Austrian Federal Environment Agency (Umweltbundesamt): +43 1 31304 0"
+      - "German Environment Agency (UBA)"
+    note: "Voluntary but increasingly valued by EU public procurement and eco-conscious retailers."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "sourcing"
+    - "supply chain"
+    - "merchandising"
+  company_keywords:
+    - "textil"
+    - "bekleidung"
+    - "mode"
+    - "fashion"
+    - "apparel"
+    - "clothing"
+    - "abbigliamento"
+    - "habillement"
+    - "wholesale"
+    - "distributor"
+    - "importer"
+    - "garment"
+  company_size_ranges: ["11-50", "51-200", "201-500"]
+
+trade_fairs:
+  - name: "Munich Fabric Start"
+    country: DE
+    city: Munich
+    month: 2
+    url: "https://www.munichfabricstart.com"
+  - name: "Texworld Paris"
+    country: FR
+    city: Paris
+    month: 2
+    url: "https://www.texworld.messefrankfurt.com"
+  - name: "Première Vision Paris"
+    country: FR
+    city: Paris
+    month: 2
+    url: "https://www.premierevision.com"
+  - name: "CPM Moscow / Eurasian sourcing"
+    country: DE
+    city: Berlin
+    month: 9
+  - name: "Pitti Uomo"
+    country: IT
+    city: Florence
+    month: 1
+    url: "https://www.pittimmagine.com"
+
+typical_first_order_units: 500
+typical_compliance_cost_eur: 3000
+sample_shipping_cost_eur: 300
+
+competitor_query_template: >
+  Who are the top 3-5 apparel and clothing wholesale manufacturers currently
+  supplying {target_country} importers and distributors in 2025?
+  Focus on manufacturers from Eastern Europe, Turkey, and the Balkans.
+  For each: country of origin, approximate wholesale price range per shirt/piece,
+  certifications held (OEKO-TEX, REACH), and which distributors they supply.
+  Cite sources.

@@ -1,0 +1,143 @@
+sector_name: metals_steel
+hs_chapters: ["72", "73"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Stahlprofile Großhandel", "Stahlbleche Großhandel Deutschland", "Stahlrohre Großhandel"]
+  AT: ["Stahl Großhandel Österreich", "Stahlprodukte Großhandel Wien"]
+  IT: ["acciaio ingrosso", "profilati acciaio ingrosso", "lamiere acciaio all'ingrosso"]
+  FR: ["acier grossiste", "profilés acier grossiste France", "acier plat grossiste"]
+  NL: ["staal groothandel", "staalproducten groothandel Nederland"]
+  CH: ["Stahl Grosshandel Schweiz", "Stahlprofile Grosshandel"]
+
+retail_to_wholesale_ratio: 0.85
+typical_retailer_margin: 0.15
+
+compliance_checks:
+  - id: en_10204_cert
+    name: EN 10204:2004 Material Test Certificate (Type 3.1)
+    type: mandatory
+    critical: true
+    cost_low_eur: 200
+    cost_high_eur: 800
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 3
+    providers:
+      - "Issued by the steel mill with each batch (standard practice)"
+      - "Third-party testing: Bureau Veritas, SGS, or TÜV"
+    note: "EU EN 10204 material certificates (Type 3.1 — mill test report, Type 3.2 — third-party witnessed) are required for every steel consignment. Without these, EU distributors will reject delivery. Obtain from your steel mill."
+
+  - id: reach_svhc_steel
+    name: REACH SVHC Declaration (steel articles)
+    type: mandatory
+    critical: false
+    cost_low_eur: 300
+    cost_high_eur: 1000
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 4
+    providers:
+      - "Self-prepared with material data from your steel supplier"
+      - "Chemical compliance consultant"
+    note: "EU REACH Regulation (EC) No 1907/2006 Article 33 — must declare SVHC >0.1% by weight. Steel articles typically comply if using standard grades. Get SVHC declaration from your steel supplier."
+
+  - id: ce_marking_construction
+    name: CE Marking (Construction Products Regulation)
+    type: mandatory
+    critical: false
+    cost_low_eur: 2000
+    cost_high_eur: 8000
+    lead_time_weeks_min: 6
+    lead_time_weeks_max: 16
+    providers:
+      - "TÜV Austria: +43 1 514 07"
+      - "Bureau Veritas Austria"
+      - "Approved notified body per EN 1090"
+    note: "EU Construction Products Regulation (EU) 305/2011 — CE marking required for structural steel products (beams, columns, plates used in construction). EN 1090 factory production control audit required. Check if your HS6 code is for structural or non-structural steel."
+
+  - id: iso_9001_steel
+    name: ISO 9001:2015 Quality Management
+    type: commercial_expected
+    critical: false
+    cost_low_eur: 3000
+    cost_high_eur: 7000
+    lead_time_weeks_min: 12
+    lead_time_weeks_max: 24
+    providers:
+      - "Bureau Veritas Germany: +49 40 3233 0"
+      - "SGS Germany"
+      - "TÜV Rheinland"
+    note: "Major steel distributors and steel service centres require ISO 9001 certification from suppliers. Strong competitive advantage over uncertified Eastern European suppliers."
+
+  - id: anti_dumping_check
+    name: EU Anti-Dumping Duties Compliance Check
+    type: mandatory
+    critical: false
+    cost_low_eur: 500
+    cost_high_eur: 2000
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 2
+    providers:
+      - "Trade law firm (import/export specialist)"
+      - "EU Trade Defence portal: trade.ec.europa.eu"
+    note: "Several steel product categories face EU anti-dumping duties — particularly from non-EU origins. Verify your exact HS6 code against current EU anti-dumping measures. WB6 countries are generally exempt under SAA agreements but verify annually."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "supply chain"
+    - "materials manager"
+    - "metals trader"
+  company_keywords:
+    - "stahl"
+    - "metall"
+    - "steel"
+    - "metal"
+    - "acciaio"
+    - "acier"
+    - "wholesale"
+    - "distributor"
+    - "service centre"
+    - "stahlhandel"
+    - "metallhandel"
+    - "ferrous"
+    - "iron"
+    - "fabrication"
+  company_size_ranges: ["11-50", "51-200", "201-500", "501-1000"]
+
+trade_fairs:
+  - name: "EuroBLECH Hannover"
+    country: DE
+    city: Hannover
+    month: 10
+    url: "https://www.euroblech.com"
+  - name: "Tube & Wire Düsseldorf"
+    country: DE
+    city: Düsseldorf
+    month: 4
+    url: "https://www.wire.messeduesseldorf.de"
+  - name: "Metal Italy"
+    country: IT
+    city: Brescia
+    month: 3
+  - name: "Blechexpo Stuttgart"
+    country: DE
+    city: Stuttgart
+    month: 11
+    url: "https://www.blechexpo-messe.de"
+
+typical_first_order_units: 20000
+typical_compliance_cost_eur: 8000
+sample_shipping_cost_eur: 600
+
+competitor_query_template: >
+  Who are the top 3-5 steel and metal product wholesale manufacturers/exporters
+  currently supplying {target_country} steel distributors and service centres in 2025?
+  Focus on suppliers from Eastern Europe, Ukraine, Turkey, and the Balkans.
+  For each: country of origin, approximate wholesale price range per tonne,
+  certifications held (EN 10204, ISO 9001, CE), and which distributors they supply.
+  Cite sources.

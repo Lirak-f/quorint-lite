@@ -11,6 +11,7 @@ from dotenv import load_dotenv
 from langfuse import observe
 
 from models import DeepResearchOutput
+from resilience import log_langfuse_error, retry_with_backoff
 
 load_dotenv()
 
@@ -137,25 +138,29 @@ def _call_perplexity_deep_research(query: str) -> dict[str, Any]:
     }
 
     try:
-        # sonar-deep-research can take ~3 minutes — use a 240s timeout
-        resp = httpx.post(url, json=payload, headers=headers, timeout=240)
+        # sonar-deep-research can take ~3 minutes — single attempt, long timeout
+        resp = retry_with_backoff(
+            lambda: httpx.post(url, json=payload, headers=headers, timeout=240),
+            attempts=2,
+            base_delay=5.0,
+            label="perplexity_deep_research",
+        )
         resp.raise_for_status()
         data = resp.json()
         content = data["choices"][0]["message"]["content"]
-
-        # Extract citations if present
         citations = data.get("citations", [])
         if not citations:
-            # Try to extract source URLs from the content itself
             citations = re.findall(r"https?://[^\s\)\"']+", content)[:15]
-
         return {"narrative": content, "citations": citations, "error": None}
 
-    except httpx.TimeoutException:
+    except httpx.TimeoutException as e:
+        log_langfuse_error("perplexity_deep_research_timeout", e, {})
         return {"narrative": None, "error": "Perplexity deep research timed out (>240s)"}
     except httpx.HTTPStatusError as e:
+        log_langfuse_error("perplexity_deep_research_http", e, {"status": e.response.status_code})
         return {"narrative": None, "error": f"Perplexity HTTP error {e.response.status_code}: {e.response.text[:200]}"}
     except Exception as e:
+        log_langfuse_error("perplexity_deep_research", e, {})
         return {"narrative": None, "error": str(e)}
 
 
@@ -184,13 +189,19 @@ def _call_perplexity_sonar_fallback(query: str) -> dict[str, Any]:
     }
 
     try:
-        resp = httpx.post(url, json=payload, headers=headers, timeout=60)
+        resp = retry_with_backoff(
+            lambda: httpx.post(url, json=payload, headers=headers, timeout=60),
+            attempts=2,
+            base_delay=2.0,
+            label="perplexity_sonar_fallback",
+        )
         resp.raise_for_status()
         data = resp.json()
         content = data["choices"][0]["message"]["content"]
         citations = data.get("citations", re.findall(r"https?://[^\s\)\"']+", content)[:10])
         return {"narrative": content, "citations": citations, "error": None, "model_used": "sonar-pro-fallback"}
     except Exception as e:
+        log_langfuse_error("perplexity_sonar_fallback", e, {})
         return {"narrative": None, "error": f"sonar-pro fallback error: {e}"}
 
 

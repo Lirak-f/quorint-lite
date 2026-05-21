@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from langfuse import observe
 
 from models import ComplianceItem, ComplianceOutput
+from resilience import log_langfuse_error, retry_with_backoff
 from scoring.config_loader import load_sector_config
 
 load_dotenv()
@@ -47,14 +48,18 @@ def _check_echa_reach(hs_code: str) -> dict[str, Any]:
     if chapter not in _CHEMICAL_CHAPTERS:
         return {"reach_applies": False}
 
-    # ECHA substances of very high concern list (public endpoint)
     url = "https://echa.europa.eu/api/substances/svhc"
     try:
-        resp = httpx.get(url, timeout=15)
+        resp = retry_with_backoff(
+            lambda: httpx.get(url, timeout=15),
+            attempts=2,
+            base_delay=1.0,
+            label="echa_reach",
+        )
         if resp.status_code == 200:
             return {"reach_applies": True, "source": "echa_api"}
-    except Exception:
-        pass
+    except Exception as e:
+        log_langfuse_error("echa_reach", e, {"hs_chapter": chapter})
 
     # Fallback: REACH applies to all chemical-adjacent chapters by regulation
     return {"reach_applies": True, "source": "regulatory_default"}
@@ -260,19 +265,24 @@ def _call_claude_compliance(prompt: str) -> list[dict]:
     ]
 
     try:
-        resp = client.messages.create(
-            model="claude-sonnet-4-6",
-            max_tokens=2000,
-            system=_COMPLIANCE_SYSTEM,
-            tools=tools,
-            tool_choice={"type": "tool", "name": "submit_compliance_checklist"},
-            messages=[{"role": "user", "content": prompt}],
+        resp = retry_with_backoff(
+            lambda: client.messages.create(
+                model="claude-sonnet-4-6",
+                max_tokens=2000,
+                system=_COMPLIANCE_SYSTEM,
+                tools=tools,
+                tool_choice={"type": "tool", "name": "submit_compliance_checklist"},
+                messages=[{"role": "user", "content": prompt}],
+            ),
+            attempts=3,
+            base_delay=2.0,
+            label="claude_compliance",
         )
         for block in resp.content:
             if block.type == "tool_use" and block.name == "submit_compliance_checklist":
                 return block.input.get("items", [])
     except Exception as e:
-        print(f"[Claude compliance error: {e}] — trying Gemini fallback")
+        log_langfuse_error("claude_compliance", e, {})
 
     return _call_gemini_compliance(prompt)
 
