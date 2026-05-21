@@ -28,6 +28,7 @@ def _update_report_status(
     status: str,
     error_message: Optional[str] = None,
     worker_num: Optional[int] = None,
+    extra: Optional[dict] = None,
 ) -> None:
     """Write report status + progress to Supabase. Fires Realtime event to frontend."""
     try:
@@ -37,6 +38,10 @@ def _update_report_status(
             update["error_message"] = error_message[:1000]
         if status == "complete":
             update["completed_at"] = datetime.now(timezone.utc).isoformat()
+        if worker_num is not None:
+            update["current_worker"] = worker_num
+        if extra:
+            update.update(extra)
 
         db.table("reports").update(update).eq("id", report_id).execute()
 
@@ -116,6 +121,25 @@ def _save_worker_results(report_id: str, state: dict) -> None:
                     "receptiveness_signals": b.receptiveness_signals,
                     "tier": b.tier,
                 }).execute()
+
+        synthesis = state.get("synthesis_output")
+        if synthesis:
+            synthesis_update: dict[str, Any] = {
+                "full_report_markdown": synthesis.full_report_markdown,
+                "first_contact_email": synthesis.first_contact_email,
+                "first_contact_subject_lines": synthesis.first_contact_subject_lines,
+                "action_plan_markdown": synthesis.action_plan_markdown,
+                "risk_flags_markdown": synthesis.risk_flags_markdown,
+            }
+            if synthesis.full_report_markdown:
+                try:
+                    from pdf.generator import generate_pdf
+                    pdf_url = generate_pdf(synthesis.full_report_markdown, report_id)
+                    synthesis_update["pdf_url"] = pdf_url
+                    print(f"[Orchestrator] PDF generated for report {report_id}: {pdf_url}")
+                except Exception as pdf_err:
+                    print(f"[Orchestrator] PDF generation failed for {report_id}: {pdf_err}")
+            db.table("reports").update(synthesis_update).eq("id", report_id).execute()
 
     except Exception as e:
         print(f"[Orchestrator] Failed to save worker results for {report_id}: {e}")

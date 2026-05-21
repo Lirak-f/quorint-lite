@@ -39,7 +39,9 @@ const AVG_WORKER_SECONDS = [60, 30, 90, 120, 90];
 export function ReportView({ report: initialReport }: { report: any }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const [report, setReport] = useState<any>(initialReport);
-  const [completedWorkers, setCompletedWorkers] = useState(0);
+  const [completedWorkers, setCompletedWorkers] = useState<number>(
+    initialReport.status === "complete" ? 5 : (initialReport.current_worker ?? 0)
+  );
   const [copied, setCopied] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
   const [emailCopied, setEmailCopied] = useState(false);
@@ -64,21 +66,17 @@ export function ReportView({ report: initialReport }: { report: any }) {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (payload: any) => {
           setReport((prev: any) => ({ ...prev, ...payload.new }));
+          if (payload.new.current_worker != null) {
+            setCompletedWorkers(
+              payload.new.status === "complete" ? 5 : payload.new.current_worker
+            );
+          }
         }
       )
       .subscribe();
 
-    // Simulate worker progress for UI
-    let w = 0;
-    const interval = setInterval(() => {
-      w++;
-      if (w <= 5) setCompletedWorkers(w);
-      else clearInterval(interval);
-    }, 8000);
-
     return () => {
       supabase.removeChannel(channel);
-      clearInterval(interval);
     };
   }, [isRunning, report.id]);
 
