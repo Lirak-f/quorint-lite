@@ -43,7 +43,7 @@ def _send_email(to: str, subject: str, html: str) -> None:
         import resend
         resend.api_key = api_key
         resend.Emails.send({
-            "from": "Quorint <reports@quorint.com>",
+            "from": "Quorint <onboarding@resend.dev>",
             "to": [to],
             "subject": subject,
             "html": html,
