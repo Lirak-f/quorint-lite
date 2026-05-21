@@ -135,7 +135,7 @@ async def create_report(
 
     # Create Paddle transaction — job is held until webhook fires
     from paddle_client import paddle
-    from paddle_billing.Resources.Transactions.Operations import CreateTransaction
+    from paddle_billing.Resources.Transactions.Operations.CreateTransaction import CreateTransaction  # type: ignore[import-untyped]
     from paddle_billing.Entities.Shared import CollectionMode, CustomData
 
     price_id = _price_id_for_tier(body.tier)
@@ -147,7 +147,7 @@ async def create_report(
                 items=[{"price_id": price_id, "quantity": 1}],
                 custom_data=CustomData({"report_id": report_id}),
                 collection_mode=CollectionMode.Automatic,
-                checkout={"url": f"{app_url}/reports/{report_id}"},
+                checkout={"url": f"{app_url}/reports/{report_id}"} if not app_url.startswith("http://localhost") else None,
             )
         )
     except Exception as e:
