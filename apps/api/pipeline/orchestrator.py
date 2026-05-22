@@ -68,6 +68,8 @@ def _save_worker_results(report_id: str, state: dict) -> None:
                 "tariff_preferential": float(demand.tariff_preferential) if demand.tariff_preferential is not None else None,
                 "trade_agreement": demand.trade_agreement,
                 "rca_score": float(demand.rca_score) if demand.rca_score is not None else None,
+                "gdp_usd": float(demand.gdp_usd) if demand.gdp_usd is not None else None,
+                "lpi_score": float(demand.lpi_score) if demand.lpi_score is not None else None,
                 "retail_p25_eur": demand.retail_p25_eur,
                 "retail_median_eur": demand.retail_median_eur,
                 "retail_p75_eur": demand.retail_p75_eur,
@@ -131,6 +133,7 @@ def _save_worker_results(report_id: str, state: dict) -> None:
                 "first_contact_subject_lines": synthesis.first_contact_subject_lines,
                 "action_plan_markdown": synthesis.action_plan_markdown,
                 "risk_flags_markdown": synthesis.risk_flags_markdown,
+                "per_buyer_emails": synthesis.per_buyer_emails,
             }
             if synthesis.full_report_markdown:
                 try:

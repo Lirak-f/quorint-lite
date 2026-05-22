@@ -195,6 +195,63 @@ async def create_report(
     )
 
 
+@router.post("/reports/{report_id}/run", status_code=202)
+async def run_report(
+    report_id: str,
+    user: dict = Depends(require_auth),
+) -> dict[str, str]:
+    """
+    Trigger pipeline execution for a queued report.
+    Idempotent: no-ops if report is already running or complete.
+    Caller must own the report.
+    """
+    user_id: str = user["id"]
+    db = _supabase()
+
+    result = db.table("reports").select(
+        "*, manufacturers!inner(user_id)"
+    ).eq("id", report_id).execute()
+
+    if not result.data:
+        raise HTTPException(status_code=404, detail="Report not found")
+
+    row = result.data[0]
+    mfr = row.get("manufacturers") or {}
+    if mfr.get("user_id") != user_id:
+        raise HTTPException(status_code=403, detail="Not your report")
+
+    status = row.get("status", "queued")
+    if status in ("running", "complete"):
+        return {"status": status}
+
+    # Start pipeline in background thread — same fallback path as webhook
+    import threading
+    from models import ManufacturerInput
+    from pipeline.orchestrator import run_pipeline
+
+    manufacturer = ManufacturerInput(
+        hs_code=row["hs_code"],
+        origin_iso2=row["origin_iso2"],
+        target_iso2=row["target_iso2"],
+        unit_cost_eur=float(row.get("unit_cost_eur") or 0),
+        tier=row.get("tier", "full"),
+        certifications=row.get("certifications") or [],
+        capacity_units=row.get("capacity_units") or "<100/mo",
+        company=None,
+    )
+
+    def _run():
+        run_pipeline(
+            report_id=report_id,
+            manufacturer=manufacturer,
+            tier=row.get("tier", "full"),
+            is_test=row.get("is_test", False),
+        )
+
+    threading.Thread(target=_run, daemon=True).start()
+    return {"status": "running"}
+
+
 @router.get("/reports/{report_id}")
 async def get_report(
     report_id: str,

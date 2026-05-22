@@ -160,41 +160,76 @@ def _iso2_to_comtrade_code(iso2: str) -> str:
 
 def _fetch_wits_tariff(hs_code: str, origin_iso2: str, target_iso2: str) -> dict[str, Any]:
     """
-    Fetch MFN and preferential tariff rates from World Bank WITS SDMX API.
-    Kosovo (XK) trades with EU under CEFTA + SAA preferential arrangements.
+    Fetch MFN tariff rate from WITS REST API (applied MFN for EU as reporter).
+    Falls back to EU chapter-level MFN rates (EC TARIC) when API is unavailable.
+    Kosovo (XK) trades with EU under CEFTA + SAA — preferential rate is 0%.
     """
     hs6 = hs_code[:6].ljust(6, "0")
+    chapter = int(hs6[:2])
 
-    # WITS SDMX REST endpoint
-    base = "https://wits.worldbank.org/API/V1/SDMX/V21/datasource/TradeStat"
+    # EU MFN rates by HS chapter (source: EC TARIC, 2024 — most common rate for each chapter)
+    _EU_MFN_BY_CHAPTER: dict[int, float] = {
+        1: 0.00, 2: 0.126, 3: 0.088, 4: 0.188, 5: 0.00,
+        6: 0.093, 7: 0.121, 8: 0.085, 9: 0.072, 10: 0.056,
+        11: 0.068, 12: 0.00, 13: 0.00, 14: 0.00, 15: 0.063,
+        16: 0.165, 17: 0.168, 18: 0.08, 19: 0.091, 20: 0.148,
+        21: 0.097, 22: 0.099, 23: 0.00, 24: 0.217, 25: 0.00,
+        26: 0.00, 27: 0.035, 28: 0.054, 29: 0.062, 30: 0.00,
+        31: 0.057, 32: 0.062, 33: 0.063, 34: 0.049, 35: 0.052,
+        36: 0.00, 37: 0.038, 38: 0.056, 39: 0.064, 40: 0.063,
+        41: 0.029, 42: 0.034, 43: 0.00, 44: 0.03, 45: 0.00,
+        46: 0.00, 47: 0.00, 48: 0.07, 49: 0.00, 50: 0.00,
+        51: 0.00, 52: 0.12, 53: 0.00, 54: 0.12, 55: 0.12,
+        56: 0.065, 57: 0.085, 58: 0.085, 59: 0.065, 60: 0.12,
+        61: 0.12, 62: 0.12, 63: 0.12, 64: 0.085, 65: 0.027,
+        66: 0.034, 67: 0.034, 68: 0.027, 69: 0.038, 70: 0.049,
+        71: 0.025, 72: 0.00, 73: 0.029, 74: 0.038, 75: 0.00,
+        76: 0.06, 77: 0.00, 78: 0.025, 79: 0.025, 80: 0.00,
+        81: 0.00, 82: 0.027, 83: 0.025, 84: 0.017, 85: 0.022,
+        86: 0.017, 87: 0.066, 88: 0.00, 89: 0.017, 90: 0.017,
+        91: 0.034, 92: 0.034, 93: 0.025, 94: 0.017, 95: 0.034,
+        96: 0.034, 97: 0.00,
+    }
 
-    # Try preferential first (PREF), fall back to MFN
-    results = {}
-    for flow_type, code in [("preferential", "PREF"), ("mfn", "MFN")]:
-        url = f"{base}/reporter/{target_iso2}/partner/{origin_iso2}/product/{hs6}/indicator/AHS"
-        try:
-            resp = retry_with_backoff(
-                lambda u=url: httpx.get(u, timeout=20, follow_redirects=True),
-                attempts=3,
-                base_delay=1.5,
-                label="wits_tariff",
-            )
-            if resp.status_code == 200:
-                text = resp.text
-                match = re.search(r"<generic:ObsValue value=\"([0-9.]+)\"", text)
-                if match:
-                    results[f"tariff_{flow_type}"] = float(match.group(1)) / 100
-        except Exception as e:
-            log_langfuse_error("wits_tariff", e, {"flow": flow_type, "hs6": hs6})
+    results: dict[str, Any] = {}
 
-    # Kosovo–EU: CEFTA agreement, furniture typically 0% preferential
-    if origin_iso2 == "XK" and target_iso2 in _EUR_ZONE:
-        results.setdefault("tariff_preferential", 0.0)
-        results.setdefault("trade_agreement", "CEFTA + SAA framework")
+    # WITS REST API for applied MFN (EU as reporter, world as partner = MFN)
+    url = (
+        f"https://wits.worldbank.org/API/V1/wits/datasource/TradeStat/tradeindicator/MFN"
+        f"/reporter/EUN/partner/WLD/year/2022/product/{hs6}/indicator/AHS-SMPL-AVRG"
+    )
+    try:
+        resp = retry_with_backoff(
+            lambda: httpx.get(url, timeout=20, follow_redirects=True,
+                              headers={"Accept": "application/json"}),
+            attempts=2,
+            base_delay=1.5,
+            label="wits_tariff",
+        )
+        if resp.status_code == 200:
+            data = resp.json()
+            # Response: {"data": [{"TariffLine": "...", "SimpleAverage": "3.7", ...}]}
+            records = data.get("data", [])
+            if records:
+                val = records[0].get("SimpleAverage") or records[0].get("WeightedAverage")
+                if val is not None:
+                    results["tariff_mfn"] = round(float(val) / 100, 4)
+    except Exception as e:
+        log_langfuse_error("wits_tariff", e, {"hs6": hs6, "target": target_iso2})
+
+    # Fall back to chapter-level EU MFN lookup if API gave nothing
+    if results.get("tariff_mfn") is None and chapter in _EU_MFN_BY_CHAPTER:
+        results["tariff_mfn"] = _EU_MFN_BY_CHAPTER[chapter]
+
+    # WB6 → EU preferential rate: CEFTA + SAA gives 0% for most goods
+    if origin_iso2 in {"XK", "AL", "RS", "BA", "MK", "ME"} and target_iso2 in _EUR_ZONE:
+        results["tariff_preferential"] = 0.0
+        results["trade_agreement"] = "CEFTA + SAA framework"
+    else:
+        results.setdefault("tariff_preferential", None)
+        results.setdefault("trade_agreement", None)
 
     results.setdefault("tariff_mfn", None)
-    results.setdefault("tariff_preferential", None)
-    results.setdefault("trade_agreement", None)
     return results
 
 

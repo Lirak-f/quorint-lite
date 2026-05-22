@@ -11,14 +11,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /app
 
-# Install Python dependencies before copying source so layer is cached
-COPY pyproject.toml ./
-RUN pip install --no-cache-dir hatchling && \
-    pip install --no-cache-dir \
-    fastapi uvicorn[standard] langchain langgraph langfuse anthropic httpx pydantic \
-    supabase python-dotenv weasyprint Markdown comtradeapicall world_trade_data \
-    redis pyyaml pandas rich resend paddle-python-sdk apscheduler \
-    "sentry-sdk[fastapi]"
+# Install Python dependencies with pinned versions (layer cached before source copy)
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
 

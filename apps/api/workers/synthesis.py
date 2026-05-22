@@ -50,70 +50,54 @@ _ORIGIN_NAMES = {
 # ─────────────────────────────────────────
 
 _SECTION5_SYSTEM = """\
-You are writing a real business email on behalf of a manufacturer.
-This is NOT a template. Use their actual product details, origin story, and certifications.
-Write as if you know their business personally.
-The email should read like it was written by a senior export manager who has sold to
-{target_country} distributors before.
-Write the email body in {target_language}. Subject lines can be in {target_language}.
-Be direct, specific, credible. Avoid generic phrases like "I would like to introduce" or
-"We are pleased to present". Start with a value statement.
+You are writing personalised outreach emails on behalf of a manufacturer.
+Each email is addressed to a specific named contact at a specific company.
+ALWAYS write in English — no exceptions.
+This is NOT a template. Use their actual product details and the buyer's specific business context.
+The emails should read like a senior export manager who knows the buyer's market.
+Be direct, specific, credible. Open with a value statement, not an introduction.
+Never use placeholders — use the actual contact name, company name, and details provided.
+Keep each email 120–160 words. End with a single clear ask (a call or sample request).
 """
 
 _SECTION5_TOOL = {
-    "name": "submit_first_contact_kit",
-    "description": "Submit the complete first contact kit for the manufacturer.",
+    "name": "submit_per_buyer_emails",
+    "description": "Submit personalised outreach emails for the top 2-3 priority contacts.",
     "input_schema": {
         "type": "object",
         "properties": {
-            "email_subject_variants": {
+            "contacts": {
                 "type": "array",
-                "items": {"type": "string"},
-                "description": "Three subject line variants in target language",
-            },
-            "email_body": {
-                "type": "string",
-                "description": "Full email body in target language — NOT a template",
-            },
-            "follow_up_day3": {
-                "type": "string",
-                "description": "Follow-up message for day 3 in target language",
-            },
-            "follow_up_day7": {
-                "type": "string",
-                "description": "Follow-up message for day 7 in target language",
-            },
-            "follow_up_day14": {
-                "type": "string",
-                "description": "Follow-up message for day 14 in target language",
-            },
-            "objection_handling": {
-                "type": "array",
+                "description": "One entry per contact, in priority order (highest first)",
                 "items": {
                     "type": "object",
                     "properties": {
-                        "objection": {"type": "string"},
-                        "response": {"type": "string"},
+                        "company_name": {"type": "string"},
+                        "contact_name": {"type": "string"},
+                        "contact_email": {"type": "string"},
+                        "priority_rank": {"type": "integer", "description": "1 = highest priority"},
+                        "why_priority": {"type": "string", "description": "One sentence explaining why this contact ranks here"},
+                        "subject_line": {"type": "string", "description": "Email subject in English"},
+                        "email_body": {"type": "string", "description": "Full personalised email body in English"},
+                        "follow_up_day3": {"type": "string", "description": "Short follow-up for day 3"},
+                        "follow_up_day7": {"type": "string", "description": "Short follow-up for day 7"},
                     },
-                    "required": ["objection", "response"],
+                    "required": [
+                        "company_name", "contact_name", "priority_rank",
+                        "why_priority", "subject_line", "email_body",
+                        "follow_up_day3", "follow_up_day7",
+                    ],
                 },
-                "description": "2-3 common objections with specific responses",
-            },
-            "origin_positioning": {
-                "type": "string",
-                "description": "2 sentences positioning the origin country as an asset",
+                "minItems": 1,
+                "maxItems": 3,
             },
             "attachments_to_include": {
                 "type": "array",
                 "items": {"type": "string"},
-                "description": "List of documents to attach with the first email",
+                "description": "Documents to attach with every first email",
             },
         },
-        "required": [
-            "email_subject_variants", "email_body",
-            "follow_up_day3", "follow_up_day7", "follow_up_day14",
-            "objection_handling", "origin_positioning", "attachments_to_include",
-        ],
+        "required": ["contacts", "attachments_to_include"],
     },
 }
 
@@ -127,18 +111,18 @@ def _build_section5_prompt(
     target_country: str,
     origin_country: str,
 ) -> str:
-    warm_buyer_summaries = []
+    buyer_details = []
     for b in warm_buyers[:3]:
-        warm_buyer_summaries.append({
-            "company": b.company_name,
+        buyer_details.append({
+            "company_name": b.company_name,
             "city": b.city,
-            "contact": b.contact_name,
-            "title": b.contact_title,
-            "signals": b.receptiveness_signals[:2],
-            "score": b.receptiveness_score,
+            "contact_name": b.contact_name or "Purchasing Manager",
+            "contact_title": b.contact_title,
+            "contact_email": b.contact_email,
+            "buyer_type": b.buyer_type,
+            "receptiveness_score": b.receptiveness_score,
+            "receptiveness_signals": b.receptiveness_signals[:3],
         })
-
-    certifications_held = manufacturer.certifications or []
 
     lc = demand.landed_cost
     margin_str = f"{lc.margin:.1%} ({lc.margin_verdict})" if lc else "margin data unavailable"
@@ -149,32 +133,28 @@ def _build_section5_prompt(
             "origin_country": origin_country,
             "hs_code": manufacturer.hs_code,
             "unit_cost_eur": manufacturer.unit_cost_eur,
-            "certifications_held": certifications_held,
-            "capacity": manufacturer.capacity_units,
+            "certifications_held": manufacturer.certifications or [],
+            "capacity_units_per_month": manufacturer.capacity_units,
         },
-        "target": {
-            "country": target_country,
-            "language": target_language,
-        },
-        "top_warm_buyers": warm_buyer_summaries,
+        "target_country": target_country,
         "market_context": {
-            "import_value_usd": demand.import_value_usd,
-            "margin": margin_str,
             "wholesale_mid_eur": (
                 round((demand.wholesale_low_eur + demand.wholesale_high_eur) / 2, 0)
                 if demand.wholesale_low_eur and demand.wholesale_high_eur else None
             ),
+            "margin": margin_str,
             "competitor_summary": demand.competitor_summary,
-            "market_narrative_excerpt": (
-                deep_research.market_narrative[:600] if deep_research.market_narrative else ""
+            "market_insight": (
+                deep_research.market_narrative[:400] if deep_research.market_narrative else ""
             ),
         },
+        "contacts_to_email": buyer_details,
         "task": (
-            f"Write a first contact email in {target_language} from this {origin_country} manufacturer "
-            f"to a {target_country} furniture distributor. "
-            "Use real product specifics — do NOT use placeholders like [Your Company Name]. "
-            "The email should be 150–200 words, direct, and end with a single clear ask. "
-            "Write subject lines in the target language."
+            f"Write personalised English outreach emails from this {origin_country} manufacturer "
+            f"to each of the {len(buyer_details)} contacts listed. "
+            "Rank them by priority (use receptiveness_score and signals). "
+            "Each email must use the contact's real name and company — no placeholders. "
+            "120–160 words each. End with one clear ask."
         ),
     }, ensure_ascii=False)
 
@@ -475,31 +455,29 @@ def _call_gemini_synthesis(
 
 def _placeholder_section5(manufacturer: ManufacturerInput, target_country: str, target_language: str) -> dict:
     company = manufacturer.company or "our company"
+    origin = _ORIGIN_NAMES.get(manufacturer.origin_iso2, "Kosovo")
     return {
-        "email_subject_variants": [
-            f"Solid oak furniture from {_ORIGIN_NAMES.get(manufacturer.origin_iso2, 'Kosovo')} — wholesale enquiry",
-            f"New supplier for {target_country} distributors — HS {manufacturer.hs_code}",
-            f"Direct from manufacturer: solid wood furniture at €{manufacturer.unit_cost_eur}/unit",
+        "contacts": [
+            {
+                "company_name": f"{target_country} distributor",
+                "contact_name": "Purchasing Manager",
+                "contact_email": "",
+                "priority_rank": 1,
+                "why_priority": "Top-scored buyer by receptiveness signals",
+                "subject_line": f"Direct supply from {origin} — HS {manufacturer.hs_code} wholesale",
+                "email_body": (
+                    f"Dear Purchasing Manager,\n\n"
+                    f"We manufacture HS {manufacturer.hs_code} products at {company} in {origin}. "
+                    f"Our factory cost is €{manufacturer.unit_cost_eur}/unit with capacity for "
+                    f"{manufacturer.capacity_units or 'flexible'} units per month.\n\n"
+                    f"We ship road freight to {target_country} in 4–6 days. "
+                    "Would you be open to a 10-minute call this week to see if there is a fit?\n\n"
+                    "Best regards"
+                ),
+                "follow_up_day3": "Following up — happy to send product photos and a spec sheet if useful.",
+                "follow_up_day7": "One more follow-up. If you are not the right contact for new suppliers, could you point me to who is?",
+            }
         ],
-        "email_body": (
-            f"Dear [Purchasing Manager],\n\n"
-            f"We manufacture solid oak furniture at {company} in {_ORIGIN_NAMES.get(manufacturer.origin_iso2, 'Kosovo')}. "
-            f"Our unit cost is €{manufacturer.unit_cost_eur} and we have capacity for {manufacturer.capacity_units} per month. "
-            f"We are FSC-certifiable and have been producing for EU markets.\n\n"
-            "I would like to arrange a brief call to discuss whether there is a fit with your range.\n\n"
-            "Best regards"
-        ),
-        "follow_up_day3": "Following up on my email from 3 days ago — happy to send product photos and a spec sheet.",
-        "follow_up_day7": "One more follow-up — if you are not the right contact for new supplier enquiries, could you point me to the right person?",
-        "follow_up_day14": "Final follow-up for now. I will reach out again in 60 days. Our catalogue is attached.",
-        "objection_handling": [
-            {"objection": "We already have suppliers", "response": "We are not asking you to switch — we are asking for a backup source."},
-            {"objection": "We do not know Kosovo manufacturers", "response": "Kosovo is FSC-certifiable, within 5 days by road, and 30–40% cheaper than Austrian domestic."},
-        ],
-        "origin_positioning": (
-            f"{_ORIGIN_NAMES.get(manufacturer.origin_iso2, 'Kosovo')} oak — proximity to EU, lower cost than Austrian domestic, "
-            "FSC-certifiable from certified forests — positions you as a credible European supplier, not a distant importer."
-        ),
         "attachments_to_include": ["Product photos", "Technical specification sheet", "Certifications held"],
     }
 
@@ -928,25 +906,29 @@ def run_synthesis(
         gemini_s5_schema = {
             "type": "OBJECT",
             "properties": {
-                "email_subject_variants": {"type": "ARRAY", "items": {"type": "STRING"}},
-                "email_body": {"type": "STRING"},
-                "follow_up_day3": {"type": "STRING"},
-                "follow_up_day7": {"type": "STRING"},
-                "follow_up_day14": {"type": "STRING"},
-                "objection_handling": {
+                "contacts": {
                     "type": "ARRAY",
                     "items": {
                         "type": "OBJECT",
-                        "properties": {"objection": {"type": "STRING"}, "response": {"type": "STRING"}},
-                        "required": ["objection", "response"],
+                        "properties": {
+                            "company_name": {"type": "STRING"},
+                            "contact_name": {"type": "STRING"},
+                            "contact_email": {"type": "STRING"},
+                            "priority_rank": {"type": "INTEGER"},
+                            "why_priority": {"type": "STRING"},
+                            "subject_line": {"type": "STRING"},
+                            "email_body": {"type": "STRING"},
+                            "follow_up_day3": {"type": "STRING"},
+                            "follow_up_day7": {"type": "STRING"},
+                        },
+                        "required": ["company_name", "contact_name", "priority_rank",
+                                     "why_priority", "subject_line", "email_body",
+                                     "follow_up_day3", "follow_up_day7"],
                     },
                 },
-                "origin_positioning": {"type": "STRING"},
                 "attachments_to_include": {"type": "ARRAY", "items": {"type": "STRING"}},
             },
-            "required": ["email_subject_variants", "email_body", "follow_up_day3",
-                         "follow_up_day7", "follow_up_day14", "objection_handling",
-                         "origin_positioning", "attachments_to_include"],
+            "required": ["contacts", "attachments_to_include"],
         }
         section5 = _call_gemini_synthesis(
             system=section5_system,
@@ -958,65 +940,8 @@ def run_synthesis(
         print("[Worker 5] All LLMs failed for Section 5 — using placeholder")
         section5 = _placeholder_section5(manufacturer, target_country, target_language)
 
-    # Step 3: Section 6 — 90-day action plan (Claude Sonnet 4.6)
-    section6_prompt = _build_section6_prompt(
-        manufacturer=manufacturer,
-        compliance=compliance,
-        buyer_list=buyer_list,
-        deep_research=deep_research,
-        working_capital=working_capital,
-        sector_config=sector_config,
-        origin_country=origin_country,
-        target_country=target_country,
-    )
-    section6 = _call_claude_with_tool(
-        system=_SECTION6_SYSTEM,
-        prompt=section6_prompt,
-        tool=_SECTION6_TOOL,
-        max_tokens=3000,
-    )
-    if not section6:
-        gemini_s6_schema = {
-            "type": "OBJECT",
-            "properties": {
-                "weeks": {
-                    "type": "ARRAY",
-                    "items": {
-                        "type": "OBJECT",
-                        "properties": {
-                            "week_number": {"type": "INTEGER"},
-                            "title": {"type": "STRING"},
-                            "tasks": {
-                                "type": "ARRAY",
-                                "items": {
-                                    "type": "OBJECT",
-                                    "properties": {
-                                        "owner": {"type": "STRING"},
-                                        "action": {"type": "STRING"},
-                                        "definition_of_done": {"type": "STRING"},
-                                        "cash_note": {"type": "STRING"},
-                                    },
-                                    "required": ["owner", "action", "definition_of_done"],
-                                },
-                            },
-                        },
-                        "required": ["week_number", "title", "tasks"],
-                    },
-                },
-                "go_no_go_checkpoint": {"type": "STRING"},
-                "trade_fair_recommendation": {"type": "STRING"},
-            },
-            "required": ["weeks", "go_no_go_checkpoint"],
-        }
-        section6 = _call_gemini_synthesis(
-            system=_SECTION6_SYSTEM,
-            prompt_data=json.loads(section6_prompt),
-            task_name="section6",
-            response_schema=gemini_s6_schema,
-        )
-    if not section6:
-        print("[Worker 5] All LLMs failed for Section 6 — using placeholder")
-        section6 = _placeholder_section6(compliance, buyer_list, working_capital)
+    # Step 3: Section 6 — 90-day action plan (disabled)
+    section6 = {"weeks": [], "go_no_go_checkpoint": ""}
 
     # Step 4: Section 7 — Risk flags (Claude Sonnet 4.6)
     section7_prompt = _build_section7_prompt(
@@ -1080,33 +1005,34 @@ def run_synthesis(
         target_country=target_country,
     )
 
-    # Build action plan markdown snippet (for ReportSynthesis.action_plan_markdown)
-    action_plan_lines = []
-    for week in section6.get("weeks", []):
-        action_plan_lines.append(f"**Week {week['week_number']}: {week['title']}**")
-        for task in week.get("tasks", []):
-            action_plan_lines.append(f"- {task['action']}")
-    action_plan_md = "\n".join(action_plan_lines)
-
     # Build risk flags markdown snippet
     risk_lines = []
     for risk in section7.get("risks", []):
         risk_lines.append(f"- **{risk['title']}** ({risk['severity']}): {risk['description']}")
     risk_md = "\n".join(risk_lines)
 
+    # Extract per-buyer email list (sorted by priority_rank)
+    per_buyer_emails = sorted(
+        section5.get("contacts", []),
+        key=lambda c: c.get("priority_rank", 99),
+    )
+
+    # Keep first_contact_email as the top-ranked contact's body for backward compat
+    top_contact = per_buyer_emails[0] if per_buyer_emails else {}
     follow_up = {
-        "day3": section5.get("follow_up_day3", ""),
-        "day7": section5.get("follow_up_day7", ""),
-        "day14": section5.get("follow_up_day14", ""),
+        "day3": top_contact.get("follow_up_day3", ""),
+        "day7": top_contact.get("follow_up_day7", ""),
+        "day14": "",
     }
 
     return ReportSynthesis(
-        first_contact_email=section5.get("email_body", ""),
-        first_contact_subject_lines=section5.get("email_subject_variants", []),
+        first_contact_email=top_contact.get("email_body", ""),
+        first_contact_subject_lines=[c.get("subject_line", "") for c in per_buyer_emails if c.get("subject_line")],
         follow_up_sequence=follow_up,
-        origin_positioning=section5.get("origin_positioning", ""),
-        action_plan_markdown=action_plan_md,
+        origin_positioning="",
+        action_plan_markdown="",
         risk_flags_markdown=risk_md,
         working_capital=working_capital,
         full_report_markdown=full_markdown,
+        per_buyer_emails=per_buyer_emails,
     )

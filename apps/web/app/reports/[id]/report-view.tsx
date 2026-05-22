@@ -12,7 +12,6 @@ import {
   Copy,
   CheckCircle2,
   Clock,
-  AlertTriangle,
   ChevronDown,
   ChevronUp,
   ExternalLink,
@@ -28,13 +27,13 @@ interface WorkerStep {
 
 const WORKER_STEPS: WorkerStep[] = [
   { key: "w1", label: "Market demand + pricing" },
-  { key: "w2", label: "Compliance map" },
+  { key: "w2", label: "Compliance check" },
   { key: "w3", label: "Buyer discovery" },
   { key: "w4", label: "Deep market research" },
   { key: "w5", label: "Report synthesis" },
 ];
 
-const AVG_WORKER_SECONDS = [60, 30, 90, 120, 90];
+const AVG_WORKER_SECONDS = [60, 5, 90, 120, 90];
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function ReportView({ report: initialReport }: { report: any }) {
@@ -45,10 +44,15 @@ export function ReportView({ report: initialReport }: { report: any }) {
   );
   const [copied, setCopied] = useState(false);
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
-  const [emailCopied, setEmailCopied] = useState(false);
 
   const status: ReportStatus = report.status;
   const isRunning = status === "queued" || status === "running";
+
+  // Kick off pipeline execution if report is still queued (e.g. page load after payment)
+  useEffect(() => {
+    if (status !== "queued") return;
+    fetch(`/api/reports/${report.id}/run`, { method: "POST" }).catch(() => {});
+  }, [report.id, status]);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -58,7 +62,7 @@ export function ReportView({ report: initialReport }: { report: any }) {
     async function fetchFullReport() {
       const { data } = await supabase
         .from("reports")
-        .select("*, report_demand(*), report_compliance(*), report_buyers(*)")
+        .select("*, report_demand(*), report_buyers(*)")
         .eq("id", report.id)
         .single();
       if (data) setReport(data);
@@ -112,11 +116,20 @@ export function ReportView({ report: initialReport }: { report: any }) {
 
   const demand = report.report_demand;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const compliance: any[] = report.report_compliance ?? [];
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const buyers: any[] = report.report_buyers ?? [];
-  const warmBuyers = buyers.filter((b) => b.tier === "warm");
-  const coldBuyers = buyers.filter((b) => b.tier === "cold");
+  const warmBuyers = buyers
+    .filter((b) => b.tier === "warm")
+    .sort((a, b) => (b.receptiveness_score ?? 0) - (a.receptiveness_score ?? 0));
+  const coldBuyers = buyers
+    .filter((b) => b.tier === "cold")
+    .sort((a, b) => (b.receptiveness_score ?? 0) - (a.receptiveness_score ?? 0));
+
+  // per-buyer emails keyed by company_name for O(1) lookup
+  const perBuyerEmails: Record<string, Record<string, unknown>> = {};
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  for (const e of (report.per_buyer_emails ?? []) as any[]) {
+    if (e.company_name) perBuyerEmails[e.company_name] = e;
+  }
 
   const marginVerdict = demand?.margin_verdict;
   const marginBadgeVariant =
@@ -127,12 +140,7 @@ export function ReportView({ report: initialReport }: { report: any }) {
       : "error";
 
   const fullReportMarkdown = report.full_report_markdown ?? "";
-  const firstContactEmail = report.first_contact_email ?? "";
-  const subjectLines: string[] = report.first_contact_subject_lines ?? [];
-  const actionPlan = report.action_plan_markdown ?? "";
   const riskFlags = report.risk_flags_markdown ?? "";
-
-  const criticalItem = compliance.find((c) => c.critical);
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
@@ -386,82 +394,23 @@ export function ReportView({ report: initialReport }: { report: any }) {
             </ReportSection>
           )}
 
-          {/* Section 3 — Compliance */}
-          {compliance.length > 0 && (
-            <ReportSection title="3. Compliance map">
-              {criticalItem && (
-                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
-                  <div>
-                    <p className="text-sm font-semibold text-amber-800">
-                      Critical: {criticalItem.cert_name}
-                    </p>
-                    {criticalItem.note && (
-                      <p className="text-sm text-amber-700 mt-0.5">{criticalItem.note}</p>
-                    )}
-                  </div>
-                </div>
-              )}
-              <div className="space-y-3">
-                {compliance.map((item) => (
-                  <div
-                    key={item.id}
-                    className={cn(
-                      "rounded-lg border p-4",
-                      item.critical
-                        ? "border-amber-200 bg-amber-50/50"
-                        : "border-slate-200 bg-white"
-                    )}
-                  >
-                    <div className="flex items-start justify-between gap-2 mb-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-semibold text-slate-900">{item.cert_name}</p>
-                        {item.critical && (
-                          <Badge variant="warning">Critical</Badge>
-                        )}
-                        <Badge variant={item.cert_type === "mandatory" ? "error" : "default"}>
-                          {item.cert_type === "mandatory" ? "Mandatory" : "Commercial expected"}
-                        </Badge>
-                      </div>
-                      <p className="text-sm font-semibold text-slate-900 whitespace-nowrap">
-                        €{item.cost_low_eur}–{item.cost_high_eur}
-                      </p>
-                    </div>
-                    <p className="text-xs text-slate-500 mb-1">
-                      Lead time: {item.lead_time_min}–{item.lead_time_max} weeks
-                    </p>
-                    {item.providers?.length > 0 && (
-                      <p className="text-xs text-slate-600">
-                        <span className="font-medium">Provider: </span>
-                        {item.providers[0]}
-                      </p>
-                    )}
-                    {item.note && (
-                      <p className="text-xs text-slate-500 mt-1">{item.note}</p>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </ReportSection>
-          )}
-
-          {/* Section 4 — Buyers */}
+          {/* Section 3 — Buyer shortlist + outreach */}
           {buyers.length > 0 && (
-            <ReportSection title="4. Buyer shortlist">
+            <ReportSection title="3. Buyer shortlist">
               {warmBuyers.length > 0 && (
                 <div className="mb-4">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
-                    Warm — contact this week ({warmBuyers.length})
+                    Priority contacts — reach out this week ({warmBuyers.length})
                   </p>
                   <div className="space-y-3">
                     {warmBuyers.slice(0, 3).map((buyer) => (
-                      <BuyerCard key={buyer.id} buyer={buyer} email={firstContactEmail} />
+                      <BuyerCard key={buyer.id} buyer={buyer} outreach={perBuyerEmails[buyer.company_name]} />
                     ))}
                     {warmBuyers.length > 3 && (
                       <CollapsibleBlock label={`Show ${warmBuyers.length - 3} more warm buyers`}>
                         <div className="space-y-3">
                           {warmBuyers.slice(3).map((buyer) => (
-                            <BuyerCard key={buyer.id} buyer={buyer} email={firstContactEmail} />
+                            <BuyerCard key={buyer.id} buyer={buyer} outreach={perBuyerEmails[buyer.company_name]} />
                           ))}
                         </div>
                       </CollapsibleBlock>
@@ -470,10 +419,10 @@ export function ReportView({ report: initialReport }: { report: any }) {
                 </div>
               )}
               {coldBuyers.length > 0 && (
-                <CollapsibleBlock label={`Show ${coldBuyers.length} cold buyers (90-day nurture)`}>
-                  <div className="space-y-3">
+                <CollapsibleBlock label={`Show ${coldBuyers.length} lower-priority buyers`}>
+                  <div className="space-y-3 mt-1">
                     {coldBuyers.map((buyer) => (
-                      <BuyerCard key={buyer.id} buyer={buyer} email={firstContactEmail} dimmed />
+                      <BuyerCard key={buyer.id} buyer={buyer} outreach={perBuyerEmails[buyer.company_name]} dimmed />
                     ))}
                   </div>
                 </CollapsibleBlock>
@@ -481,53 +430,9 @@ export function ReportView({ report: initialReport }: { report: any }) {
             </ReportSection>
           )}
 
-          {/* Section 5 — First contact kit */}
-          {firstContactEmail && (
-            <ReportSection title="5. First contact email">
-              <div className="flex items-center gap-2 mb-3 flex-wrap">
-                {subjectLines.map((line, i) => (
-                  <span
-                    key={i}
-                    className="text-xs bg-slate-100 text-slate-700 px-3 py-1 rounded-full"
-                  >
-                    Option {i + 1}: {line}
-                  </span>
-                ))}
-              </div>
-              <div className="relative bg-slate-50 border border-slate-200 rounded-lg p-5">
-                <button
-                  onClick={async () => {
-                    await navigator.clipboard.writeText(firstContactEmail);
-                    setEmailCopied(true);
-                    setTimeout(() => setEmailCopied(false), 2000);
-                  }}
-                  className="absolute top-3 right-3 flex items-center gap-1.5 text-xs text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded px-2.5 py-1.5"
-                >
-                  {emailCopied ? (
-                    <><CheckCircle2 className="w-3.5 h-3.5 text-green-600" /> Copied</>
-                  ) : (
-                    <><Copy className="w-3.5 h-3.5" /> Copy</>
-                  )}
-                </button>
-                <pre className="text-sm text-slate-700 whitespace-pre-wrap font-sans leading-relaxed pr-16">
-                  {firstContactEmail}
-                </pre>
-              </div>
-            </ReportSection>
-          )}
-
-          {/* Section 6 — 90-day action plan */}
-          {actionPlan && (
-            <ReportSection title="6. 90-day action plan">
-              <div className="prose prose-sm prose-slate max-w-none">
-                <MarkdownRenderer content={actionPlan} />
-              </div>
-            </ReportSection>
-          )}
-
-          {/* Section 7 — Risk flags */}
+          {/* Section 4 — Risk flags */}
           {riskFlags && (
-            <ReportSection title="7. Risk flags">
+            <ReportSection title="4. Risk flags">
               <div className="prose prose-sm prose-slate max-w-none">
                 <MarkdownRenderer content={riskFlags} />
               </div>
@@ -627,97 +532,194 @@ function CollapsibleBlock({
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function BuyerCard({ buyer, email, dimmed }: { buyer: any; email?: string; dimmed?: boolean }) {
-  const [showEmail, setShowEmail] = useState(false);
+function BuyerCard({ buyer, outreach, dimmed }: { buyer: any; outreach?: Record<string, unknown>; dimmed?: boolean }) {
+  const [showOutreach, setShowOutreach] = useState(false);
+  const [outreachTab, setOutreachTab] = useState<"email" | "followup">("email");
+  const [copied, setCopied] = useState(false);
 
-  const personalised = email
-    ? email.replace(/\[COMPANY\]/g, buyer.company_name).replace(/\[CONTACT\]/g, buyer.contact_name ?? "")
-    : "";
+  const emailBody = outreach?.email_body as string | undefined;
+  const subjectLine = outreach?.subject_line as string | undefined;
+  const followUp3 = outreach?.follow_up_day3 as string | undefined;
+  const followUp7 = outreach?.follow_up_day7 as string | undefined;
+  const whyPriority = outreach?.why_priority as string | undefined;
+
+  async function copyEmail() {
+    if (!emailBody) return;
+    await navigator.clipboard.writeText(emailBody);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  }
 
   return (
     <div
       className={cn(
-        "rounded-lg border p-4",
-        buyer.tier === "warm" ? "border-green-200 bg-green-50/40" : "border-slate-200 bg-white",
-        dimmed && "opacity-70"
+        "rounded-lg border",
+        buyer.tier === "warm" ? "border-green-200 bg-green-50/30" : "border-slate-200 bg-white",
+        dimmed && "opacity-60"
       )}
     >
-      <div className="flex items-start justify-between gap-2 mb-2">
-        <div>
-          <p className="text-sm font-semibold text-slate-900">{buyer.company_name}</p>
-          <p className="text-xs text-slate-500">
-            {buyer.city}, {buyer.country_iso2} · {buyer.buyer_type}
-          </p>
+      {/* Contact header */}
+      <div className="p-4">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">{buyer.company_name}</p>
+            <p className="text-xs text-slate-500">
+              {[buyer.city, buyer.country_iso2, buyer.buyer_type].filter(Boolean).join(" · ")}
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            {buyer.receptiveness_score != null && (
+              <div
+                className={cn(
+                  "text-xs font-semibold px-2 py-1 rounded-full",
+                  buyer.receptiveness_score >= 70
+                    ? "bg-green-100 text-green-800"
+                    : "bg-amber-100 text-amber-800"
+                )}
+              >
+                {buyer.receptiveness_score}/100
+              </div>
+            )}
+            {buyer.tier === "warm" && <Badge variant="success">Warm</Badge>}
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          {buyer.receptiveness_score != null && (
-            <div
+
+        {/* Contact person */}
+        {buyer.contact_name && (
+          <p className="text-xs text-slate-700 mb-1">
+            <span className="font-medium">{buyer.contact_name}</span>
+            {buyer.contact_title && (
+              <span className="text-slate-500"> — {buyer.contact_title}</span>
+            )}
+          </p>
+        )}
+
+        {/* Why priority */}
+        {whyPriority && (
+          <p className="text-xs text-slate-500 italic mb-2">{whyPriority}</p>
+        )}
+
+        {/* Signals */}
+        {buyer.receptiveness_signals?.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {buyer.receptiveness_signals.slice(0, 2).map((signal: string, i: number) => (
+              <span key={i} className="text-xs bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-full">
+                {signal}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {/* Action row */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {buyer.contact_email && (
+            <a
+              href={`mailto:${buyer.contact_email}`}
+              className="inline-flex items-center gap-1.5 text-xs bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <Mail className="w-3 h-3" />
+              {buyer.contact_email}
+            </a>
+          )}
+          {buyer.linkedin_url && (
+            <a
+              href={buyer.linkedin_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+            >
+              <ExternalLink className="w-3 h-3" />
+              LinkedIn
+            </a>
+          )}
+          {emailBody && (
+            <button
+              onClick={() => setShowOutreach((o) => !o)}
               className={cn(
-                "text-xs font-semibold px-2 py-1 rounded-full",
-                buyer.receptiveness_score >= 70
-                  ? "bg-green-100 text-green-800"
-                  : "bg-amber-100 text-amber-800"
+                "inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ml-auto",
+                showOutreach
+                  ? "bg-slate-100 border-slate-300 text-slate-700"
+                  : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800"
               )}
             >
-              {buyer.receptiveness_score}/100
-            </div>
+              <Mail className="w-3 h-3" />
+              {showOutreach ? "Hide outreach" : "What to write"}
+              {showOutreach ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+            </button>
           )}
-          {buyer.tier === "warm" && <Badge variant="success">Warm</Badge>}
         </div>
       </div>
 
-      {buyer.contact_name && (
-        <p className="text-xs text-slate-600 mb-1">
-          <span className="font-medium">{buyer.contact_name}</span>
-          {buyer.contact_title && ` — ${buyer.contact_title}`}
-        </p>
-      )}
+      {/* Outreach panel */}
+      {showOutreach && emailBody && (
+        <div className="border-t border-slate-200 bg-white rounded-b-lg">
+          {/* Tabs */}
+          <div className="flex border-b border-slate-100">
+            {(["email", "followup"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => setOutreachTab(tab)}
+                className={cn(
+                  "px-4 py-2.5 text-xs font-medium transition-colors",
+                  outreachTab === tab
+                    ? "text-slate-900 border-b-2 border-slate-900 -mb-px"
+                    : "text-slate-500 hover:text-slate-700"
+                )}
+              >
+                {tab === "email" ? "First email" : "Follow-ups"}
+              </button>
+            ))}
+          </div>
 
-      {buyer.receptiveness_signals?.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
-          {buyer.receptiveness_signals.slice(0, 2).map((signal: string, i: number) => (
-            <span key={i} className="text-xs bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-full">
-              {signal}
-            </span>
-          ))}
+          <div className="p-4">
+            {outreachTab === "email" && (
+              <>
+                {subjectLine && (
+                  <p className="text-xs text-slate-500 mb-2">
+                    <span className="font-medium text-slate-700">Subject: </span>
+                    {subjectLine}
+                  </p>
+                )}
+                <div className="relative">
+                  <pre className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3 whitespace-pre-wrap font-sans leading-relaxed pr-16">
+                    {emailBody}
+                  </pre>
+                  <button
+                    onClick={copyEmail}
+                    className="absolute top-2 right-2 flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded px-2 py-1"
+                  >
+                    {copied ? (
+                      <><CheckCircle2 className="w-3 h-3 text-green-600" /> Copied</>
+                    ) : (
+                      <><Copy className="w-3 h-3" /> Copy</>
+                    )}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {outreachTab === "followup" && (
+              <div className="space-y-3">
+                {followUp3 && (
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 mb-1">Day 3</p>
+                    <p className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                      {followUp3}
+                    </p>
+                  </div>
+                )}
+                {followUp7 && (
+                  <div>
+                    <p className="text-xs font-medium text-slate-500 mb-1">Day 7</p>
+                    <p className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
+                      {followUp7}
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
-      )}
-
-      <div className="flex items-center gap-2 flex-wrap">
-        {buyer.contact_email && (
-          <a
-            href={`mailto:${buyer.contact_email}`}
-            className="inline-flex items-center gap-1.5 text-xs bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors"
-          >
-            <Mail className="w-3 h-3" />
-            {buyer.contact_email}
-          </a>
-        )}
-        {buyer.linkedin_url && (
-          <a
-            href={buyer.linkedin_url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-          >
-            <ExternalLink className="w-3 h-3" />
-            LinkedIn
-          </a>
-        )}
-        {email && buyer.tier === "warm" && (
-          <button
-            onClick={() => setShowEmail((o) => !o)}
-            className="text-xs text-slate-500 hover:text-slate-700"
-          >
-            {showEmail ? "Hide" : "Show"} personalised email
-          </button>
-        )}
-      </div>
-
-      {showEmail && personalised && (
-        <pre className="mt-3 text-xs text-slate-700 bg-white border border-slate-200 rounded-lg p-3 whitespace-pre-wrap font-sans leading-relaxed">
-          {personalised}
-        </pre>
       )}
     </div>
   );

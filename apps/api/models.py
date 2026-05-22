@@ -178,6 +178,7 @@ class ReportSynthesis(BaseModel):
     risk_flags_markdown: str
     working_capital: WorkingCapitalEstimate
     full_report_markdown: str
+    per_buyer_emails: list[dict] = Field(default_factory=list)
 
 
 # ─────────────────────────────────────────

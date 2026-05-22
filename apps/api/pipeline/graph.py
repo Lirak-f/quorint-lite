@@ -81,10 +81,9 @@ def node_w1_market(state: PipelineState) -> PipelineState:
 
 
 def node_w2_compliance(state: PipelineState) -> PipelineState:
-    from workers.compliance import run_compliance
-    m = state["manufacturer"]
-    output = run_compliance(hs_code=m.hs_code, target_iso2=m.target_iso2)
-    return {**state, "compliance_output": output, "current_worker": 2}
+    # Compliance map disabled — skip LLM call, return empty output
+    empty = ComplianceOutput(items=[], total_cost_low_eur=0, total_cost_high_eur=0)
+    return {**state, "compliance_output": empty, "current_worker": 2}
 
 
 def node_w3_buyers(state: PipelineState) -> PipelineState:
