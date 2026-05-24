@@ -1,39 +1,76 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { cn, formatCurrency, formatPercent, COUNTRY_FLAGS, COUNTRY_NAMES } from "@/lib/utils";
+import { cn, COUNTRY_NAMES } from "@/lib/utils";
 import { analytics } from "@/lib/analytics";
 import {
-  Download,
-  Copy,
+  ArrowLeft,
+  Briefcase,
+  Check,
   CheckCircle2,
   Clock,
-  ChevronDown,
-  ChevronUp,
+  Copy,
+  Download,
+  GripVertical,
   ExternalLink,
   Mail,
+  Search,
+  TrendingUp,
+  User,
 } from "lucide-react";
 
 type ReportStatus = "queued" | "running" | "complete" | "failed";
+type PipelineStatus = "notcontacted" | "contacted" | "replied" | "meeting" | "deal";
+type TierFilter = "all" | "warm" | "cold";
 
 interface WorkerStep {
   label: string;
+  sub: string;
   key: string;
 }
 
 const WORKER_STEPS: WorkerStep[] = [
-  { key: "w1", label: "Market demand + pricing" },
-  { key: "w2", label: "Compliance check" },
-  { key: "w3", label: "Buyer discovery" },
-  { key: "w4", label: "Deep market research" },
-  { key: "w5", label: "Report synthesis" },
+  { key: "w1", label: "Analyzing market demand", sub: "Import data, pricing, and tariffs" },
+  { key: "w2", label: "Checking compliance", sub: "EU requirements for your product" },
+  { key: "w3", label: "Discovering buyer companies", sub: "Searching Apollo and trade directories" },
+  { key: "w4", label: "Analyzing sourcing signals", sub: "Job postings, fairs, and growth data" },
+  { key: "w5", label: "Writing outreach emails", sub: "Personalising for each buyer" },
 ];
 
 const AVG_WORKER_SECONDS = [60, 5, 90, 120, 90];
+
+const FLAG_STYLES: Record<string, React.CSSProperties> = {
+  DE: { background: "linear-gradient(180deg,#000 0 33%,#DD0000 33% 66%,#FFCC00 66%)" },
+  AT: { background: "linear-gradient(180deg,#ED2939 0 33%,#fff 33% 66%,#ED2939 66%)" },
+  IT: { background: "linear-gradient(90deg,#009246 0 33%,#fff 33% 66%,#CE2B37 66%)" },
+  FR: { background: "linear-gradient(90deg,#0055A4 0 33%,#fff 33% 66%,#EF4135 66%)" },
+  NL: { background: "linear-gradient(180deg,#AE1C28 0 33%,#fff 33% 66%,#21468B 66%)" },
+  CH: { background: "#DA291C" },
+  BE: { background: "linear-gradient(90deg,#000 0 33%,#FAE042 33% 66%,#ED2939 66%)" },
+  PL: { background: "linear-gradient(180deg,#fff 50%,#DC143C 50%)" },
+  ES: { background: "linear-gradient(180deg,#AA151B 0 25%,#F1BF00 25% 75%,#AA151B 75%)" },
+  PT: { background: "linear-gradient(90deg,#046A38 0 40%,#DA291C 40%)" },
+  DK: { background: "linear-gradient(180deg,#C8102E 0 33%,#fff 33% 55%,#C8102E 55%)" },
+  GB: { background: "linear-gradient(45deg,#012169 0 40%,#fff 40% 50%,#C8102E 50% 60%,#fff 60% 70%,#012169 70%)" },
+};
+
+const PIPELINE_BUCKETS: { key: PipelineStatus; label: string; dot: string; chip: string }[] = [
+  { key: "notcontacted", label: "Not contacted", dot: "#9CA3AF", chip: "bg-muted text-ink-3" },
+  { key: "contacted", label: "Contacted", dot: "#1F3B5C", chip: "bg-[#EAF1FA] text-[#1F3B5C]" },
+  { key: "replied", label: "Replied", dot: "#5A4416", chip: "bg-[#FBF1DA] text-[#5A4416]" },
+  { key: "meeting", label: "Meeting booked", dot: "#9CC129", chip: "bg-[#EBF6C8] text-green-ink" },
+  { key: "deal", label: "Deal closed", dot: "#5C1F38", chip: "bg-[#FAEAF0] text-[#5C1F38]" },
+];
+
+const STATUS_LABELS: Record<PipelineStatus, string> = {
+  notcontacted: "Not contacted",
+  contacted: "Contacted",
+  replied: "Replied",
+  meeting: "Meeting",
+  deal: "Deal",
+};
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function ReportView({ report: initialReport }: { report: any }) {
@@ -42,17 +79,21 @@ export function ReportView({ report: initialReport }: { report: any }) {
   const [completedWorkers, setCompletedWorkers] = useState<number>(
     initialReport.status === "complete" ? 5 : (initialReport.current_worker ?? 0)
   );
-  const [copied, setCopied] = useState(false);
-  const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({});
+  const [userEmail, setUserEmail] = useState<string | null>(null);
 
   const status: ReportStatus = report.status;
   const isRunning = status === "queued" || status === "running";
 
-  // Kick off pipeline execution if report is still queued (e.g. page load after payment)
   useEffect(() => {
     if (status !== "queued") return;
     fetch(`/api/reports/${report.id}/run`, { method: "POST" }).catch(() => {});
   }, [report.id, status]);
+
+  useEffect(() => {
+    createClient()
+      .auth.getUser()
+      .then(({ data }) => setUserEmail(data.user?.email ?? null));
+  }, []);
 
   useEffect(() => {
     if (!isRunning) return;
@@ -86,7 +127,6 @@ export function ReportView({ report: initialReport }: { report: any }) {
             );
           }
           if (payload.new.status === "complete" || payload.new.status === "failed") {
-            // Full re-fetch to get joined child tables (demand, compliance, buyers)
             fetchFullReport();
           } else {
             setReport((prev: any) => ({ ...prev, ...payload.new }));
@@ -104,656 +144,759 @@ export function ReportView({ report: initialReport }: { report: any }) {
     ? AVG_WORKER_SECONDS.slice(completedWorkers).reduce((a, b) => a + b, 0)
     : 0;
 
-  function toggleSection(key: string) {
-    setExpandedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  const listTitle = `HS ${report.hs_code}`;
+  const targetName = COUNTRY_NAMES[report.target_iso2] ?? report.target_iso2;
+
+  if (status === "failed") {
+    return (
+      <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-6 py-12">
+        <div className="max-w-lg w-full bg-red-50 border border-red-200 rounded-2xl p-6">
+          <p className="text-sm font-semibold text-red-800 mb-1">Report generation failed</p>
+          <p className="text-sm text-red-700">
+            {report.error_message ?? "An unexpected error occurred. Please contact support."}
+          </p>
+        </div>
+      </div>
+    );
   }
 
-  async function copyUrl() {
-    await navigator.clipboard.writeText(window.location.href);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  if (isRunning) {
+    return (
+      <ProcessingView
+        listTitle={listTitle}
+        targetName={targetName}
+        completedWorkers={completedWorkers}
+        remainingSeconds={remainingSeconds}
+        userEmail={userEmail}
+        leadCount={report.report_buyers?.length}
+      />
+    );
   }
 
-  const demand = report.report_demand;
+  return (
+    <CompleteDashboard
+      report={report}
+      listTitle={listTitle}
+      targetName={targetName}
+    />
+  );
+}
+
+function ProcessingView({
+  listTitle,
+  targetName,
+  completedWorkers,
+  remainingSeconds,
+  userEmail,
+  leadCount,
+}: {
+  listTitle: string;
+  targetName: string;
+  completedWorkers: number;
+  remainingSeconds: number;
+  userEmail: string | null;
+  leadCount?: number;
+}) {
+  const pct = Math.min(99, Math.max(8, Math.round((completedWorkers / WORKER_STEPS.length) * 100)));
+  const circumference = 2 * Math.PI * 30;
+
+  return (
+    <div className="flex min-h-[calc(100vh-3.5rem)] items-center justify-center px-6 py-10 bg-white overflow-auto">
+      <div className="relative w-full max-w-[560px] bg-warm-1 rounded-[28px] px-11 pt-11 pb-9 shadow-[0_1px_0_rgba(80,60,30,0.04),0_30px_60px_-30px_rgba(99,73,33,0.30)] overflow-hidden">
+        <div
+          className="absolute inset-0 pointer-events-none opacity-45"
+          style={{
+            backgroundImage: "radial-gradient(rgba(99,73,33,0.06) 1px, transparent 1px)",
+            backgroundSize: "24px 24px",
+            maskImage: "radial-gradient(120% 100% at 50% 0%, #000 0%, transparent 70%)",
+            WebkitMaskImage: "radial-gradient(120% 100% at 50% 0%, #000 0%, transparent 70%)",
+          }}
+        />
+
+        <div className="relative z-10">
+          <div className="flex justify-center mb-6">
+            <div className="relative w-24 h-24">
+              <svg width="96" height="96" viewBox="0 0 80 80" className="-rotate-90">
+                <circle cx="40" cy="40" r="30" fill="none" stroke="rgba(99,73,33,0.10)" strokeWidth="5" />
+                <g className="origin-center animate-[spin_2.8s_linear_infinite]">
+                  <circle
+                    cx="40"
+                    cy="40"
+                    r="30"
+                    fill="none"
+                    stroke="#9CC129"
+                    strokeWidth="5"
+                    strokeLinecap="round"
+                    strokeDasharray={circumference}
+                    strokeDashoffset={circumference * (1 - pct / 100)}
+                  />
+                </g>
+              </svg>
+              <div className="absolute inset-0 flex items-center justify-center font-serif text-2xl text-warm-ink tracking-tight">
+                {pct}%
+              </div>
+            </div>
+          </div>
+
+          <h1 className="font-serif text-[30px] leading-tight tracking-tight text-warm-ink text-center">
+            Finding your buyers
+          </h1>
+          <p className="mt-2.5 text-center text-[#7a6741] font-mono-brand text-[11.5px] uppercase tracking-[0.08em]">
+            {listTitle} · {targetName}
+            {leadCount != null ? ` · ${leadCount} leads` : ""}
+          </p>
+
+          <div className="mt-7 py-4 border-y border-[rgba(99,73,33,0.10)] flex flex-col gap-0.5">
+            {WORKER_STEPS.map((step, i) => {
+              const done = i < completedWorkers;
+              const active = i === completedWorkers;
+              return (
+                <div key={step.key} className="flex items-center gap-3.5 py-2 px-1">
+                  <StepIcon done={done} active={active} />
+                  <div className="flex-1 min-w-0">
+                    <p
+                      className={cn(
+                        "text-sm font-medium text-warm-ink",
+                        done && "text-[rgba(59,47,30,0.6)]",
+                        !done && !active && "text-[rgba(59,47,30,0.5)]"
+                      )}
+                    >
+                      {step.label}
+                    </p>
+                    <p
+                      className={cn(
+                        "text-xs text-[#7a6741] mt-0.5",
+                        !done && !active && "text-[rgba(122,103,65,0.6)]"
+                      )}
+                    >
+                      {step.sub}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {remainingSeconds > 0 && (
+            <div className="mt-5 flex items-center justify-center gap-2 text-[13px] font-medium text-warm-ink">
+              <Clock className="w-3.5 h-3.5 text-[#7a6741]" />
+              ~{Math.max(1, Math.ceil(remainingSeconds / 60))} min remaining
+            </div>
+          )}
+
+          {userEmail && (
+            <p className="mt-3.5 text-center text-xs text-[#7a6741]">
+              We&apos;ll email you at{" "}
+              <a href={`mailto:${userEmail}`} className="text-warm-ink underline underline-offset-2">
+                {userEmail}
+              </a>{" "}
+              when your leads are ready.
+            </p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StepIcon({ done, active }: { done: boolean; active: boolean }) {
+  if (done) {
+    return (
+      <div className="w-[22px] h-[22px] rounded-full bg-green-deep flex items-center justify-center shrink-0">
+        <Check className="w-2.5 h-2.5 text-white" strokeWidth={3.5} />
+      </div>
+    );
+  }
+  if (active) {
+    return (
+      <div className="relative w-[22px] h-[22px] rounded-full bg-white border border-[rgba(99,73,33,0.10)] shrink-0">
+        <span className="absolute inset-0.5 rounded-full border-2 border-green-deep border-t-transparent animate-spin" />
+      </div>
+    );
+  }
+  return (
+    <div className="w-[22px] h-[22px] rounded-full border border-[rgba(99,73,33,0.20)] shrink-0" />
+  );
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function CompleteDashboard({ report, listTitle, targetName }: { report: any; listTitle: string; targetName: string }) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const buyers: any[] = report.report_buyers ?? [];
-  const warmBuyers = buyers
-    .filter((b) => b.tier === "warm")
-    .sort((a, b) => (b.receptiveness_score ?? 0) - (a.receptiveness_score ?? 0));
-  const coldBuyers = buyers
-    .filter((b) => b.tier === "cold")
-    .sort((a, b) => (b.receptiveness_score ?? 0) - (a.receptiveness_score ?? 0));
+  const buyers: any[] = useMemo(
+    () =>
+      [...(report.report_buyers ?? [])]
+        .filter((b) => b.tier !== "skip")
+        .sort((a, b) => (b.receptiveness_score ?? 0) - (a.receptiveness_score ?? 0)),
+    [report.report_buyers]
+  );
 
-  // per-buyer emails keyed by company_name for O(1) lookup
   const perBuyerEmails: Record<string, Record<string, unknown>> = {};
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const e of (report.per_buyer_emails ?? []) as any[]) {
     if (e.company_name) perBuyerEmails[e.company_name] = e;
   }
 
-  const marginVerdict = demand?.margin_verdict;
-  const marginBadgeVariant =
-    marginVerdict === "viable"
-      ? "success"
-      : marginVerdict === "tight"
-      ? "warning"
-      : "error";
+  const [selectedId, setSelectedId] = useState<string | null>(buyers[0]?.id ?? null);
+  const [search, setSearch] = useState("");
+  const [tierFilter, setTierFilter] = useState<TierFilter>("all");
+  const [pipeline, setPipeline] = useState<Record<string, PipelineStatus>>({});
 
-  const fullReportMarkdown = report.full_report_markdown ?? "";
-  const riskFlags = report.risk_flags_markdown ?? "";
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(`quorint-pipeline-${report.id}`);
+      if (saved) setPipeline(JSON.parse(saved));
+    } catch {
+      /* ignore */
+    }
+  }, [report.id]);
+
+  useEffect(() => {
+    if (buyers.length && !buyers.some((b) => b.id === selectedId)) {
+      setSelectedId(buyers[0].id);
+    }
+  }, [buyers, selectedId]);
+
+  function updatePipeline(buyerId: string, status: PipelineStatus) {
+    setPipeline((prev) => {
+      const next = { ...prev, [buyerId]: status };
+      try {
+        localStorage.setItem(`quorint-pipeline-${report.id}`, JSON.stringify(next));
+      } catch {
+        /* ignore */
+      }
+      return next;
+    });
+  }
+
+  function getStatus(buyerId: string): PipelineStatus {
+    return pipeline[buyerId] ?? "notcontacted";
+  }
+
+  const filteredBuyers = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return buyers.filter((b) => {
+      if (tierFilter === "warm" && b.tier !== "warm") return false;
+      if (tierFilter === "cold" && b.tier !== "cold") return false;
+      if (!q) return true;
+      return (
+        b.company_name?.toLowerCase().includes(q) ||
+        b.city?.toLowerCase().includes(q) ||
+        b.contact_name?.toLowerCase().includes(q)
+      );
+    });
+  }, [buyers, search, tierFilter]);
+
+  const selectedBuyer = buyers.find((b) => b.id === selectedId) ?? null;
+  const deliveredLabel = report.completed_at
+    ? `delivered ${formatRelativeTime(report.completed_at)}`
+    : "delivered recently";
+
+  const activeConversations = buyers.filter((b) => {
+    const s = getStatus(b.id);
+    return s === "contacted" || s === "replied" || s === "meeting";
+  }).length;
+  const dealsClosed = buyers.filter((b) => getStatus(b.id) === "deal").length;
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8">
-      {/* Page header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
-        <div>
-          <div className="flex items-center gap-2 mb-1">
-            <span className="text-2xl">
-              {COUNTRY_FLAGS[report.target_iso2] ?? "🌍"}
-            </span>
-            <h1 className="text-2xl font-semibold text-slate-900">
-              {COUNTRY_NAMES[report.target_iso2] ?? report.target_iso2} — HS {report.hs_code}
-            </h1>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            <StatusBadge status={status} />
-            {report.tier === "full" && (
-              <Badge variant="info">Full report</Badge>
-            )}
-            {report.is_test && <Badge variant="outline">Test</Badge>}
-          </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={copyUrl} className="gap-1.5">
-            {copied ? (
-              <><CheckCircle2 className="w-4 h-4 text-green-600" /> Copied</>
-            ) : (
-              <><Copy className="w-4 h-4" /> Share</>
-            )}
-          </Button>
-          {report.pdf_url && (
-            <a href={report.pdf_url} target="_blank" rel="noopener noreferrer" onClick={() => analytics.pdfDownloaded(report.id)}>
-              <Button size="sm" className="gap-1.5">
-                <Download className="w-4 h-4" /> Download PDF
-              </Button>
-            </a>
-          )}
-        </div>
-      </div>
-
-      {/* Progress tracker (while running) */}
-      {isRunning && (
-        <Card className="mb-8">
-          <CardContent className="py-6">
-            <div className="flex items-center gap-2 mb-5">
-              <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-              <p className="text-sm font-medium text-slate-700">
-                Generating your report…
-              </p>
-              {remainingSeconds > 0 && (
-                <span className="text-sm text-slate-400 ml-auto flex items-center gap-1">
-                  <Clock className="w-3.5 h-3.5" />
-                  ~{Math.ceil(remainingSeconds / 60)} min remaining
-                </span>
-              )}
-            </div>
-            <div className="space-y-3">
-              {WORKER_STEPS.map((step, i) => {
-                const done = i < completedWorkers;
-                const active = i === completedWorkers;
-                return (
-                  <div key={step.key} className="flex items-center gap-3">
-                    <div
-                      className={cn(
-                        "w-5 h-5 rounded-full flex items-center justify-center shrink-0",
-                        done
-                          ? "bg-green-100"
-                          : active
-                          ? "bg-blue-100"
-                          : "bg-slate-100"
-                      )}
-                    >
-                      {done ? (
-                        <CheckCircle2 className="w-3.5 h-3.5 text-green-600" />
-                      ) : active ? (
-                        <div className="w-2 h-2 bg-blue-500 rounded-full animate-pulse" />
-                      ) : (
-                        <div className="w-2 h-2 bg-slate-300 rounded-full" />
-                      )}
-                    </div>
-                    <span
-                      className={cn(
-                        "text-sm",
-                        done
-                          ? "text-slate-500 line-through"
-                          : active
-                          ? "text-slate-900 font-medium"
-                          : "text-slate-400"
-                      )}
-                    >
-                      Worker {i + 1}: {step.label}
-                    </span>
-                    {active && (
-                      <span className="text-xs text-blue-600 bg-blue-50 px-2 py-0.5 rounded-full ml-auto">
-                        running…
-                      </span>
-                    )}
-                    {done && (
-                      <span className="text-xs text-slate-400 ml-auto">complete</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {status === "failed" && (
-        <div className="mb-8 bg-red-50 border border-red-200 rounded-xl p-5">
-          <p className="text-sm font-semibold text-red-800 mb-1">Report generation failed</p>
-          <p className="text-sm text-red-700">
-            {report.error_message ?? "An unexpected error occurred. Please contact support."}
+    <div className="flex flex-1 min-h-0 h-[calc(100vh-3.5rem)]">
+      {/* Left sidebar */}
+      <aside className="w-[280px] shrink-0 bg-[#F9FAFB] border-r border-line flex flex-col min-h-0 max-[720px]:hidden">
+        <div className="px-5 pt-4 pb-2 shrink-0">
+          <Link
+            href="/reports"
+            className="inline-flex items-center gap-1.5 text-[12.5px] text-ink-3 hover:text-ink mb-3.5"
+          >
+            <ArrowLeft className="w-3.5 h-3.5" />
+            My lead lists
+          </Link>
+          <h2 className="font-serif text-[22px] tracking-tight leading-tight text-ink">{listTitle}</h2>
+          <p className="mt-1 text-xs text-ink-3">
+            {targetName} · {buyers.length} leads · {deliveredLabel}
           </p>
+          <div className="mt-4 border-b border-line">
+            <span className="inline-block pb-2 text-[13px] font-semibold text-ink border-b-2 border-ink -mb-px">
+              Lead list
+            </span>
+          </div>
         </div>
-      )}
 
-      {/* Full report (when complete) */}
-      {status === "complete" && (
-        <div className="space-y-6">
-          {/* Section 1 — Market demand */}
-          {demand && (
-            <ReportSection title="1. Market demand snapshot" defaultOpen>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-5">
-                <Stat
-                  label="Import value"
-                  value={demand.import_value_usd ? formatCurrency(demand.import_value_usd / 1.1, "EUR") : "—"}
-                  sub="latest year"
-                />
-                <Stat
-                  label="5-yr trend"
-                  value={demand.cagr_5yr ? `+${formatPercent(demand.cagr_5yr)}/yr` : "—"}
-                  sub="CAGR"
-                />
-                <Stat
-                  label="MFN tariff"
-                  value={demand.tariff_mfn != null ? formatPercent(demand.tariff_mfn) : "—"}
-                  sub={demand.trade_agreement ?? "standard"}
-                />
-                <Stat
-                  label="GDP"
-                  value={demand.gdp_usd ? `$${(demand.gdp_usd / 1e12).toFixed(1)}T` : "—"}
-                  sub="target market"
-                />
-              </div>
-
-              {demand.top_suppliers?.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
-                    Top suppliers
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
-                    {demand.top_suppliers.map((s: any) => (
-                      <span
-                        key={s.country}
-                        className="text-sm bg-slate-100 text-slate-700 px-3 py-1 rounded-full"
-                      >
-                        {s.country}{" "}
-                        <span className="font-semibold">{formatPercent(s.share)}</span>
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {demand.demand_narrative && (
-                <p className="text-sm text-slate-700 leading-relaxed">
-                  {demand.demand_narrative}
-                </p>
-              )}
-              {demand.one_sentence_verdict && (
-                <div className="mt-3 text-sm font-medium text-slate-900 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
-                  {demand.one_sentence_verdict}
-                </div>
-              )}
-            </ReportSection>
-          )}
-
-          {/* Section 2 — Price reality check */}
-          {demand && (
-            <ReportSection title="2. Price reality check">
-              <div className="flex items-center gap-3 mb-5">
-                <div className="text-3xl font-bold text-slate-900">
-                  {demand.margin != null ? formatPercent(demand.margin) : "—"}
-                </div>
-                <div>
-                  <p className="text-sm text-slate-500">estimated margin</p>
-                  {marginVerdict && (
-                    <Badge variant={marginBadgeVariant} className="mt-0.5">
-                      {marginVerdict === "viable"
-                        ? "✓ Viable"
-                        : marginVerdict === "tight"
-                        ? "⚠ Tight"
-                        : "✗ Not viable"}
-                    </Badge>
-                  )}
-                </div>
-              </div>
-
-              {demand.retail_median_eur && (
-                <div className="grid grid-cols-3 gap-3 mb-5">
-                  <Stat label="Retail p25" value={formatCurrency(demand.retail_p25_eur)} sub="low" />
-                  <Stat label="Retail median" value={formatCurrency(demand.retail_median_eur)} sub="mid" />
-                  <Stat label="Retail p75" value={formatCurrency(demand.retail_p75_eur)} sub="high" />
-                </div>
-              )}
-
-              <CollapsibleBlock label="Show full cost breakdown">
-                <div className="space-y-2 text-sm">
-                  {[
-                    ["Your unit cost", formatCurrency(report.unit_cost_eur)],
-                    [
-                      "Road freight per unit",
-                      demand.freight_low_eur
-                        ? `~${formatCurrency(Math.round((demand.freight_low_eur + demand.freight_high_eur) / 2 / 60))}`
-                        : "—",
-                    ],
-                    ["Customs + docs", "~€5/unit"],
-                    ["Insurance", "~€4/unit"],
-                    [
-                      "DAP landed cost",
-                      demand.dap_per_unit_eur
-                        ? formatCurrency(demand.dap_per_unit_eur)
-                        : "—",
-                    ],
-                    [
-                      "Wholesale price (mid)",
-                      demand.wholesale_low_eur
-                        ? formatCurrency((demand.wholesale_low_eur + demand.wholesale_high_eur) / 2)
-                        : "—",
-                    ],
-                  ].map(([label, value]) => (
-                    <div key={label} className="flex justify-between py-1.5 border-b border-slate-100 last:border-0">
-                      <span className="text-slate-600">{label}</span>
-                      <span className="font-medium text-slate-900">{value}</span>
-                    </div>
-                  ))}
-                </div>
-              </CollapsibleBlock>
-
-              {demand.competitor_summary && (
-                <div className="mt-4 text-sm text-slate-700 leading-relaxed">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-2">
-                    Competitive landscape
-                  </p>
-                  {demand.competitor_summary}
-                </div>
-              )}
-            </ReportSection>
-          )}
-
-          {/* Section 3 — Buyer shortlist + outreach */}
-          {buyers.length > 0 && (
-            <ReportSection title="3. Buyer shortlist">
-              {warmBuyers.length > 0 && (
-                <div className="mb-4">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-400 mb-3">
-                    Priority contacts — reach out this week ({warmBuyers.length})
-                  </p>
-                  <div className="space-y-3">
-                    {warmBuyers.slice(0, 3).map((buyer) => (
-                      <BuyerCard key={buyer.id} buyer={buyer} outreach={perBuyerEmails[buyer.company_name]} />
-                    ))}
-                    {warmBuyers.length > 3 && (
-                      <CollapsibleBlock label={`Show ${warmBuyers.length - 3} more warm buyers`}>
-                        <div className="space-y-3">
-                          {warmBuyers.slice(3).map((buyer) => (
-                            <BuyerCard key={buyer.id} buyer={buyer} outreach={perBuyerEmails[buyer.company_name]} />
-                          ))}
-                        </div>
-                      </CollapsibleBlock>
-                    )}
-                  </div>
-                </div>
-              )}
-              {coldBuyers.length > 0 && (
-                <CollapsibleBlock label={`Show ${coldBuyers.length} lower-priority buyers`}>
-                  <div className="space-y-3 mt-1">
-                    {coldBuyers.map((buyer) => (
-                      <BuyerCard key={buyer.id} buyer={buyer} outreach={perBuyerEmails[buyer.company_name]} dimmed />
-                    ))}
-                  </div>
-                </CollapsibleBlock>
-              )}
-            </ReportSection>
-          )}
-
-          {/* Section 4 — Risk flags */}
-          {riskFlags && (
-            <ReportSection title="4. Risk flags">
-              <div className="prose prose-sm prose-slate max-w-none">
-                <MarkdownRenderer content={riskFlags} />
-              </div>
-            </ReportSection>
-          )}
-
-          {/* PDF download CTA (bottom) */}
-          {report.pdf_url && (
-            <div className="flex justify-center pt-4">
-              <a href={report.pdf_url} target="_blank" rel="noopener noreferrer" onClick={() => analytics.pdfDownloaded(report.id)}>
-                <Button size="lg" className="gap-2">
-                  <Download className="w-5 h-5" />
-                  Download full PDF report
-                </Button>
+        <div className="px-5 pt-3.5 pb-2.5 shrink-0">
+          <div className="relative">
+            <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-ink-4" />
+            <input
+              type="text"
+              placeholder="Search leads..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full border border-line bg-white rounded-[10px] py-2 pl-8 pr-3 text-[13px] text-ink outline-none focus:border-ink-4 placeholder:text-ink-4"
+            />
+          </div>
+          <div className="mt-2.5 flex gap-1">
+            {(["all", "warm", "cold"] as TierFilter[]).map((f) => (
+              <button
+                key={f}
+                type="button"
+                onClick={() => setTierFilter(f)}
+                className={cn(
+                  "px-2.5 py-1 rounded-full text-xs font-medium capitalize",
+                  tierFilter === f
+                    ? "bg-white border border-line text-ink"
+                    : "text-ink-3 hover:text-ink"
+                )}
+              >
+                {f === "all" ? "All" : f}
+              </button>
+            ))}
+          </div>
+          {(report.pdf_url) && (
+            <div className="mt-3 flex gap-2">
+              <a
+                href={report.pdf_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => analytics.pdfDownloaded(report.id)}
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-ink-2 hover:text-ink"
+              >
+                <Download className="w-3.5 h-3.5" />
+                PDF
               </a>
             </div>
           )}
         </div>
-      )}
-    </div>
-  );
-}
 
-/* ─── Sub-components ─── */
+        <p className="px-5 py-2 text-[11.5px] text-ink-4 font-mono-brand uppercase tracking-[0.06em] shrink-0">
+          {filteredBuyers.length} leads found
+        </p>
 
-function StatusBadge({ status }: { status: ReportStatus }) {
-  const map: Record<ReportStatus, { variant: "default" | "info" | "success" | "error"; label: string }> = {
-    queued: { variant: "default", label: "Queued" },
-    running: { variant: "info", label: "Generating…" },
-    complete: { variant: "success", label: "Complete" },
-    failed: { variant: "error", label: "Failed" },
-  };
-  const { variant, label } = map[status];
-  return <Badge variant={variant}>{label}</Badge>;
-}
+        <div className="flex-1 overflow-y-auto min-h-0 px-3 pb-4">
+          {filteredBuyers.map((buyer) => {
+            const status = getStatus(buyer.id);
+            const bucket = PIPELINE_BUCKETS.find((b) => b.key === status)!;
+            return (
+              <button
+                key={buyer.id}
+                type="button"
+                onClick={() => setSelectedId(buyer.id)}
+                className={cn(
+                  "w-full text-left px-3 py-2.5 rounded-[10px] mb-1 border-l-[3px] transition-colors",
+                  selectedId === buyer.id
+                    ? "bg-white border-l-green-deep shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_10px_-8px_rgba(0,0,0,0.12)]"
+                    : "border-l-transparent hover:bg-black/[0.025]"
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-[13px] font-semibold text-ink truncate">{buyer.company_name}</span>
+                  <span
+                    className={cn(
+                      "shrink-0 px-2 py-0.5 rounded-full text-[10.5px] font-bold font-mono-brand",
+                      buyer.tier === "cold" ? "bg-muted text-ink-3" : "bg-green text-green-ink"
+                    )}
+                  >
+                    {buyer.receptiveness_score ?? "—"}
+                  </span>
+                </div>
+                <div className="flex items-center gap-1.5 mt-1 text-[11.5px] text-ink-3">
+                  <CountryFlag iso2={buyer.country_iso2 ?? report.target_iso2} size={14} />
+                  {buyer.city ?? COUNTRY_NAMES[buyer.country_iso2] ?? buyer.country_iso2}
+                </div>
+                <span className={cn("inline-flex items-center gap-1 mt-1.5 px-1.5 py-0.5 rounded-md text-[10.5px] font-medium", bucket.chip)}>
+                  <span className="w-1 h-1 rounded-full" style={{ background: bucket.dot }} />
+                  {STATUS_LABELS[status]}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </aside>
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
-  return (
-    <div className="bg-slate-50 rounded-lg border border-slate-200 px-4 py-3">
-      <p className="text-xs text-slate-500 mb-0.5">{label}</p>
-      <p className="text-lg font-bold text-slate-900 leading-tight">{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
-    </div>
-  );
-}
-
-function ReportSection({
-  title,
-  children,
-  defaultOpen = false,
-}: {
-  title: string;
-  children: React.ReactNode;
-  defaultOpen?: boolean;
-}) {
-  const [open, setOpen] = useState(defaultOpen);
-
-  return (
-    <Card>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="w-full flex items-center justify-between px-6 py-4 hover:bg-slate-50 rounded-t-xl transition-colors"
-      >
-        <h2 className="text-base font-semibold text-slate-900 text-left">{title}</h2>
-        {open ? (
-          <ChevronUp className="w-4 h-4 text-slate-400 shrink-0" />
+      {/* Center panel */}
+      <section className="flex-1 min-w-0 overflow-y-auto bg-white px-9 py-7 pb-16 max-[1180px]:px-7">
+        {selectedBuyer ? (
+          <LeadDetail
+            buyer={selectedBuyer}
+            report={report}
+            outreach={perBuyerEmails[selectedBuyer.company_name]}
+            pipelineStatus={getStatus(selectedBuyer.id)}
+            onMarkContacted={() => updatePipeline(selectedBuyer.id, "contacted")}
+          />
         ) : (
-          <ChevronDown className="w-4 h-4 text-slate-400 shrink-0" />
+          <div className="h-full flex flex-col items-center justify-center text-center text-ink-3">
+            <TrendingUp className="w-14 h-14 text-ink-5 mb-4 opacity-40" strokeWidth={1.4} />
+            <h3 className="font-serif text-2xl text-ink tracking-tight mb-2">Select a lead to view their profile</h3>
+            <p className="text-sm">Click any lead in the sidebar to get started</p>
+          </div>
         )}
-      </button>
-      {open && <CardContent className="pt-0">{children}</CardContent>}
-    </Card>
-  );
-}
+      </section>
 
-function CollapsibleBlock({
-  label,
-  children,
-}: {
-  label: string;
-  children: React.ReactNode;
-}) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className="text-sm text-slate-600 hover:text-slate-900 flex items-center gap-1.5 py-1"
-      >
-        {open ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-        {label}
-      </button>
-      {open && <div className="mt-3">{children}</div>}
+      {/* Right pipeline sidebar */}
+      <aside className="w-[340px] shrink-0 border-l border-line bg-white flex flex-col min-h-0 max-[900px]:hidden">
+        <div className="px-5 pt-5 pb-3 flex items-baseline justify-between shrink-0">
+          <h2 className="font-serif text-[22px] tracking-tight text-ink">Pipeline</h2>
+          <span className="text-[11.5px] text-ink-3 font-mono-brand uppercase tracking-[0.06em]">
+            {buyers.length} leads
+          </span>
+        </div>
+        <div className="flex-1 overflow-y-auto min-h-0 px-4">
+          {PIPELINE_BUCKETS.map((bucket) => {
+            const items = buyers.filter((b) => getStatus(b.id) === bucket.key);
+            return (
+              <div key={bucket.key} className="mb-4">
+                <div className="flex items-center justify-between py-2 px-1.5 mb-1.5 border-b border-line">
+                  <span className="flex items-center gap-2 text-xs font-semibold text-ink font-mono-brand uppercase tracking-wide">
+                    <span className="w-2 h-2 rounded-full" style={{ background: bucket.dot }} />
+                    {bucket.label}
+                  </span>
+                  <span className="text-[11px] font-semibold text-ink-2 bg-muted rounded-full px-2 py-0.5 font-mono-brand">
+                    {items.length}
+                  </span>
+                </div>
+                {items.length === 0 ? (
+                  <div className="border border-dashed border-line rounded-[9px] py-3.5 text-center text-xs text-ink-4">
+                    No leads yet
+                  </div>
+                ) : (
+                  items.map((buyer) => (
+                    <button
+                      key={buyer.id}
+                      type="button"
+                      onClick={() => setSelectedId(buyer.id)}
+                      className="w-full flex items-center gap-2 border border-line rounded-[9px] px-2.5 py-2 mb-1 text-[12.5px] font-medium text-ink hover:border-[#cfcfcf] hover:shadow-[0_1px_0_rgba(0,0,0,0.02),0_4px_10px_-8px_rgba(0,0,0,0.15)] transition-all group"
+                    >
+                      <CountryFlag iso2={buyer.country_iso2 ?? report.target_iso2} size={14} />
+                      <span className="flex-1 truncate text-left">{buyer.company_name}</span>
+                      <GripVertical className="w-3.5 h-3.5 text-ink-4 opacity-0 group-hover:opacity-100 shrink-0" />
+                    </button>
+                  ))
+                )}
+              </div>
+            );
+          })}
+        </div>
+        <div className="px-5 py-4 border-t border-line text-xs text-ink-3 shrink-0">
+          <span className="font-semibold text-ink">{activeConversations}</span> active conversation
+          {activeConversations !== 1 ? "s" : ""} ·{" "}
+          <span className="font-semibold text-ink">{dealsClosed}</span> deals closed
+        </div>
+      </aside>
     </div>
   );
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function BuyerCard({ buyer, outreach, dimmed }: { buyer: any; outreach?: Record<string, unknown>; dimmed?: boolean }) {
-  const [showOutreach, setShowOutreach] = useState(false);
-  const [outreachTab, setOutreachTab] = useState<"email" | "followup">("email");
+function LeadDetail({
+  buyer,
+  report,
+  outreach,
+  pipelineStatus,
+  onMarkContacted,
+}: {
+  buyer: any;
+  report: any;
+  outreach?: Record<string, unknown>;
+  pipelineStatus: PipelineStatus;
+  onMarkContacted: () => void;
+}) {
   const [copied, setCopied] = useState(false);
+  const signals: string[] = buyer.receptiveness_signals ?? [];
+  const breakdown = scoreBreakdown(signals);
+  const signalCards = buildSignalCards(signals, buyer);
 
   const emailBody = outreach?.email_body as string | undefined;
   const subjectLine = outreach?.subject_line as string | undefined;
-  const followUp3 = outreach?.follow_up_day3 as string | undefined;
-  const followUp7 = outreach?.follow_up_day7 as string | undefined;
   const whyPriority = outreach?.why_priority as string | undefined;
 
   async function copyEmail() {
     if (!emailBody) return;
-    await navigator.clipboard.writeText(emailBody);
+    await navigator.clipboard.writeText(
+      subjectLine ? `Subject: ${subjectLine}\n\n${emailBody}` : emailBody
+    );
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }
 
+  const countryName = COUNTRY_NAMES[buyer.country_iso2] ?? buyer.country_iso2;
+  const initials = getInitials(buyer.contact_name ?? buyer.company_name);
+
   return (
-    <div
-      className={cn(
-        "rounded-lg border",
-        buyer.tier === "warm" ? "border-green-200 bg-green-50/30" : "border-slate-200 bg-white",
-        dimmed && "opacity-60"
-      )}
-    >
-      {/* Contact header */}
-      <div className="p-4">
-        <div className="flex items-start justify-between gap-2 mb-2">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">{buyer.company_name}</p>
-            <p className="text-xs text-slate-500">
-              {[buyer.city, buyer.country_iso2, buyer.buyer_type].filter(Boolean).join(" · ")}
-            </p>
-          </div>
-          <div className="flex items-center gap-2 shrink-0">
-            {buyer.receptiveness_score != null && (
-              <div
-                className={cn(
-                  "text-xs font-semibold px-2 py-1 rounded-full",
-                  buyer.receptiveness_score >= 70
-                    ? "bg-green-100 text-green-800"
-                    : "bg-amber-100 text-amber-800"
-                )}
-              >
-                {buyer.receptiveness_score}/100
-              </div>
+    <>
+      <div className="flex items-start justify-between gap-6 pb-5 border-b border-line">
+        <div>
+          <h1 className="font-serif text-4xl tracking-tight leading-tight text-ink">{buyer.company_name}</h1>
+          <div className="flex items-center gap-1.5 mt-1.5 text-[13px] text-ink-3 flex-wrap">
+            <CountryFlag iso2={buyer.country_iso2 ?? report.target_iso2} size={16} />
+            <span>
+              {buyer.city ? `${buyer.city} · ` : ""}
+              {countryName}
+            </span>
+            {buyer.buyer_type && (
+              <>
+                <span className="text-ink-5">·</span>
+                <span>{buyer.buyer_type}</span>
+              </>
             )}
-            {buyer.tier === "warm" && <Badge variant="success">Warm</Badge>}
           </div>
         </div>
-
-        {/* Contact person */}
-        {buyer.contact_name && (
-          <p className="text-xs text-slate-700 mb-1">
-            <span className="font-medium">{buyer.contact_name}</span>
-            {buyer.contact_title && (
-              <span className="text-slate-500"> — {buyer.contact_title}</span>
-            )}
-          </p>
-        )}
-
-        {/* Why priority */}
-        {whyPriority && (
-          <p className="text-xs text-slate-500 italic mb-2">{whyPriority}</p>
-        )}
-
-        {/* Signals */}
-        {buyer.receptiveness_signals?.length > 0 && (
-          <div className="flex flex-wrap gap-1 mb-3">
-            {buyer.receptiveness_signals.slice(0, 2).map((signal: string, i: number) => (
-              <span key={i} className="text-xs bg-white border border-slate-200 text-slate-600 px-2 py-0.5 rounded-full">
-                {signal}
-              </span>
-            ))}
+        <div className="text-right shrink-0">
+          <div className="font-serif text-[54px] leading-none tracking-tight text-green-deep">
+            {buyer.receptiveness_score ?? "—"}
           </div>
-        )}
-
-        {/* Action row */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {buyer.contact_email && (
-            <a
-              href={`mailto:${buyer.contact_email}`}
-              className="inline-flex items-center gap-1.5 text-xs bg-slate-900 text-white px-3 py-1.5 rounded-lg hover:bg-slate-800 transition-colors"
-            >
-              <Mail className="w-3 h-3" />
-              {buyer.contact_email}
-            </a>
-          )}
-          {buyer.linkedin_url && (
-            <a
-              href={buyer.linkedin_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-            >
-              <ExternalLink className="w-3 h-3" />
-              LinkedIn
-            </a>
-          )}
-          {emailBody && (
-            <button
-              onClick={() => setShowOutreach((o) => !o)}
-              className={cn(
-                "inline-flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-lg border transition-colors ml-auto",
-                showOutreach
-                  ? "bg-slate-100 border-slate-300 text-slate-700"
-                  : "bg-white border-slate-200 text-slate-600 hover:border-slate-300 hover:text-slate-800"
-              )}
-            >
-              <Mail className="w-3 h-3" />
-              {showOutreach ? "Hide outreach" : "What to write"}
-              {showOutreach ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-            </button>
-          )}
+          <p className="mt-1 text-[11px] font-mono-brand uppercase tracking-[0.08em] text-ink-3">
+            Match score
+          </p>
         </div>
       </div>
 
-      {/* Outreach panel */}
-      {showOutreach && emailBody && (
-        <div className="border-t border-slate-200 bg-white rounded-b-lg">
-          {/* Tabs */}
-          <div className="flex border-b border-slate-100">
-            {(["email", "followup"] as const).map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setOutreachTab(tab)}
-                className={cn(
-                  "px-4 py-2.5 text-xs font-medium transition-colors",
-                  outreachTab === tab
-                    ? "text-slate-900 border-b-2 border-slate-900 -mb-px"
-                    : "text-slate-500 hover:text-slate-700"
-                )}
-              >
-                {tab === "email" ? "First email" : "Follow-ups"}
-              </button>
-            ))}
-          </div>
-
-          <div className="p-4">
-            {outreachTab === "email" && (
-              <>
-                {subjectLine && (
-                  <p className="text-xs text-slate-500 mb-2">
-                    <span className="font-medium text-slate-700">Subject: </span>
-                    {subjectLine}
-                  </p>
-                )}
-                <div className="relative">
-                  <pre className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg p-3 whitespace-pre-wrap font-sans leading-relaxed pr-16">
-                    {emailBody}
-                  </pre>
-                  <button
-                    onClick={copyEmail}
-                    className="absolute top-2 right-2 flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700 bg-white border border-slate-200 rounded px-2 py-1"
-                  >
-                    {copied ? (
-                      <><CheckCircle2 className="w-3 h-3 text-green-600" /> Copied</>
-                    ) : (
-                      <><Copy className="w-3 h-3" /> Copy</>
-                    )}
-                  </button>
-                </div>
-              </>
-            )}
-
-            {outreachTab === "followup" && (
-              <div className="space-y-3">
-                {followUp3 && (
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 mb-1">Day 3</p>
-                    <p className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                      {followUp3}
-                    </p>
-                  </div>
-                )}
-                {followUp7 && (
-                  <div>
-                    <p className="text-xs font-medium text-slate-500 mb-1">Day 7</p>
-                    <p className="text-xs text-slate-700 bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-                      {followUp7}
-                    </p>
-                  </div>
-                )}
+      <div className="pt-5 pb-1">
+        <p className="text-[11px] font-mono-brand uppercase tracking-[0.08em] text-ink-3 mb-3.5">
+          Match breakdown
+        </p>
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[
+            ["Structural fit", breakdown.structural],
+            ["Active sourcing", breakdown.sourcing],
+            ["Growth", breakdown.growth],
+            ["Reachability", breakdown.reach],
+          ].map(([label, value]) => (
+            <div key={label as string}>
+              <div className="flex items-center justify-between text-xs text-ink-2 mb-1.5">
+                <span>{label}</span>
+                <span className="font-mono-brand font-semibold text-ink">{value}%</span>
               </div>
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                <div className="h-full bg-green-deep rounded-full" style={{ width: `${value}%` }} />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {signalCards.length > 0 && (
+        <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          {signalCards.map((card) => (
+            <div key={card.title} className="border border-line rounded-[14px] p-4">
+              <div className="flex items-center gap-2.5 mb-2.5">
+                <div className="w-8 h-8 rounded-[9px] bg-[#F4FADF] text-green-deep flex items-center justify-center">
+                  {card.icon}
+                </div>
+                <p className="text-[13px] font-semibold text-ink font-mono-brand uppercase tracking-wide">
+                  {card.title}
+                </p>
+              </div>
+              <p className="text-[13.5px] text-ink-2 leading-relaxed">{card.body}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {(buyer.contact_name || buyer.contact_email) && (
+        <div className="mt-5 border border-line rounded-[14px] px-5 py-4 flex items-center gap-4">
+          <div className="w-12 h-12 rounded-full bg-gradient-to-br from-[#E8DDB7] to-[#A88D5A] text-white font-semibold text-base flex items-center justify-center shrink-0">
+            {initials}
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-[11px] font-mono-brand uppercase tracking-[0.08em] text-ink-3 mb-1">
+              Decision maker
+            </p>
+            {buyer.contact_name && (
+              <p className="text-base font-semibold text-ink">{buyer.contact_name}</p>
+            )}
+            {buyer.contact_title && <p className="text-[13px] text-ink-3 mt-0.5">{buyer.contact_title}</p>}
+            {buyer.contact_email && (
+              <p className="mt-1.5 text-[12.5px] text-ink-2 font-mono-brand">
+                {buyer.contact_email}
+                {buyer.enrichment_source && (
+                  <span className="inline-flex items-center gap-1 ml-2 text-[11px] text-green-deep font-sans font-semibold">
+                    <Check className="w-2.5 h-2.5" strokeWidth={3} />
+                    verified via {buyer.enrichment_source}
+                  </span>
+                )}
+              </p>
+            )}
+            {whyPriority && <p className="mt-2 text-xs text-ink-3 italic">{whyPriority}</p>}
+          </div>
+          <div className="flex gap-2 shrink-0">
+            {buyer.linkedin_url && (
+              <a
+                href={buyer.linkedin_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-9 h-9 rounded-[10px] border border-line bg-white text-ink-2 flex items-center justify-center hover:border-ink-4 hover:text-ink"
+                aria-label="LinkedIn"
+              >
+                <ExternalLink className="w-4 h-4" />
+              </a>
+            )}
+            {buyer.contact_email && (
+              <a
+                href={`mailto:${buyer.contact_email}`}
+                className="w-9 h-9 rounded-[10px] border border-line bg-white text-ink-2 flex items-center justify-center hover:border-ink-4 hover:text-ink"
+                aria-label="Email"
+              >
+                <Mail className="w-4 h-4" />
+              </a>
             )}
           </div>
         </div>
       )}
-    </div>
+
+      {emailBody && (
+        <div className="mt-7">
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <p className="text-[13px] font-semibold text-ink font-mono-brand uppercase tracking-wide">
+              Personalized outreach email
+            </p>
+          </div>
+          <div className="border border-line rounded-[14px] bg-white px-5 py-5 text-sm leading-relaxed text-ink-2 whitespace-pre-wrap">
+            {subjectLine && (
+              <p className="text-[12.5px] text-ink-3 pb-3 mb-3.5 border-b border-dashed border-line font-mono-brand">
+                <span className="font-semibold text-ink">Subject:</span> {subjectLine}
+              </p>
+            )}
+            {emailBody}
+          </div>
+          <div className="mt-3.5 flex flex-wrap gap-2.5 items-center">
+            <button
+              type="button"
+              onClick={copyEmail}
+              className="inline-flex items-center gap-1.5 bg-white text-ink font-semibold text-[13.5px] px-4 py-2.5 rounded-full border border-line hover:border-[#cfcfcf] hover:bg-[#fafafa]"
+            >
+              {copied ? (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5 text-green-deep" />
+                  Copied
+                </>
+              ) : (
+                <>
+                  <Copy className="w-3.5 h-3.5" />
+                  Copy email
+                </>
+              )}
+            </button>
+            {pipelineStatus === "notcontacted" && (
+              <button
+                type="button"
+                onClick={onMarkContacted}
+                className="inline-flex items-center gap-1.5 bg-green text-green-ink font-semibold text-[13.5px] px-4 py-2.5 rounded-full hover:bg-green-hover hover:-translate-y-px transition-transform"
+              >
+                <Check className="w-3.5 h-3.5" strokeWidth={2.4} />
+                Mark as contacted
+              </button>
+            )}
+          </div>
+          {pipelineStatus === "notcontacted" && (
+            <p className="mt-3 text-xs text-ink-3">
+              Marking as contacted moves this lead to your pipeline tracker.
+            </p>
+          )}
+        </div>
+      )}
+    </>
   );
 }
 
-function MarkdownRenderer({ content }: { content: string }) {
-  const lines = content.split("\n");
+function CountryFlag({ iso2, size = 20 }: { iso2: string; size?: number }) {
+  const style = FLAG_STYLES[iso2] ?? { background: "linear-gradient(135deg,#cfcfcf,#9ca3af)" };
   return (
-    <div className="space-y-2">
-      {lines.map((line, i) => {
-        if (line.startsWith("## ")) {
-          return <h3 key={i} className="text-sm font-semibold text-slate-900 mt-4 mb-1">{line.replace("## ", "")}</h3>;
-        }
-        if (line.startsWith("### ")) {
-          return <h4 key={i} className="text-sm font-semibold text-slate-700">{line.replace("### ", "")}</h4>;
-        }
-        if (line.startsWith("**") && line.endsWith("**")) {
-          return <p key={i} className="text-sm font-semibold text-slate-900">{line.replace(/\*\*/g, "")}</p>;
-        }
-        if (line.startsWith("- ") || line.startsWith("* ")) {
-          return (
-            <div key={i} className="flex items-start gap-2 text-sm text-slate-700">
-              <span className="mt-1 w-1.5 h-1.5 bg-slate-400 rounded-full shrink-0" />
-              <span dangerouslySetInnerHTML={{ __html: line.replace(/^[-*] /, "").replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") }} />
-            </div>
-          );
-        }
-        if (line.trim() === "") return <div key={i} className="h-2" />;
-        return (
-          <p key={i} className="text-sm text-slate-700 leading-relaxed"
-            dangerouslySetInnerHTML={{ __html: line.replace(/\*\*(.*?)\*\*/g, "<strong>$1</strong>") }}
-          />
-        );
-      })}
-    </div>
+    <span
+      className="shrink-0 rounded-[1.5px] border border-black/8 inline-block overflow-hidden"
+      style={{ width: size, height: Math.round(size * 0.7), ...style }}
+      aria-hidden="true"
+    />
   );
+}
+
+function getInitials(name: string): string {
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+function formatRelativeTime(iso: string): string {
+  const diff = Date.now() - new Date(iso).getTime();
+  const hours = Math.floor(diff / 3_600_000);
+  if (hours < 1) return "just now";
+  if (hours < 24) return `${hours} hour${hours === 1 ? "" : "s"} ago`;
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
+}
+
+function scoreBreakdown(signals: string[]) {
+  let structural = 0;
+  let sourcing = 0;
+  let growth = 0;
+  let reach = 0;
+
+  for (const signal of signals) {
+    if (signal.startsWith("Import diversification+:")) structural += 10;
+    else if (signal.startsWith("Import diversification:")) {
+      structural += signal.includes("does not currently import") ? 25 : 5;
+    } else if (signal.startsWith("Active sourcing:")) {
+      sourcing += signal.includes("Job posting") ? 20 : 10;
+    } else if (signal.startsWith("Growth trajectory:")) {
+      growth += 15;
+    } else if (signal.startsWith("Trade fair activity:")) {
+      reach += 10;
+    } else if (signal.startsWith("Decision-maker")) {
+      reach += signal.includes("verified email") ? 10 : 5;
+    }
+  }
+
+  return {
+    structural: Math.min(100, Math.round((structural / 35) * 100)),
+    sourcing: Math.min(100, Math.round((sourcing / 30) * 100)),
+    growth: Math.min(100, Math.round((growth / 15) * 100)),
+    reach: Math.min(100, Math.round((reach / 10) * 100)),
+  };
+}
+
+function buildSignalCards(signals: string[], buyer: { contact_email?: string; linkedin_url?: string }) {
+  const cards: { title: string; body: React.ReactNode; icon: React.ReactNode }[] = [];
+  const importSig = signals.find((s) => s.startsWith("Import diversification"));
+  const sourcingSig = signals.find((s) => s.startsWith("Active sourcing"));
+  const growthSig = signals.find((s) => s.startsWith("Growth trajectory"));
+  const reachSig = signals.find((s) => s.startsWith("Decision-maker") || s.startsWith("Trade fair"));
+
+  if (importSig) {
+    cards.push({
+      title: "Import Behavior",
+      icon: <TrendingUp className="w-4 h-4" />,
+      body: stripSignalPrefix(importSig),
+    });
+  }
+  if (sourcingSig) {
+    cards.push({
+      title: "Active Sourcing",
+      icon: <Briefcase className="w-4 h-4" />,
+      body: stripSignalPrefix(sourcingSig),
+    });
+  }
+  if (growthSig) {
+    cards.push({
+      title: "Growth",
+      icon: <TrendingUp className="w-4 h-4" />,
+      body: stripSignalPrefix(growthSig),
+    });
+  }
+
+  const reachParts: string[] = [];
+  if (reachSig) reachParts.push(stripSignalPrefix(reachSig));
+  if (buyer.contact_email) reachParts.push("Verified email available.");
+  if (buyer.linkedin_url) reachParts.push("LinkedIn profile on file.");
+  if (reachParts.length) {
+    cards.push({
+      title: "Reachability",
+      icon: <User className="w-4 h-4" />,
+      body: reachParts.join(" "),
+    });
+  }
+
+  return cards.slice(0, 4);
+}
+
+function stripSignalPrefix(signal: string): string {
+  const idx = signal.indexOf(":");
+  return idx >= 0 ? signal.slice(idx + 1).trim() : signal;
 }

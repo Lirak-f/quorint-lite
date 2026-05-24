@@ -28,12 +28,18 @@ SUPPORTED_TARGET_COUNTRIES = {"AT", "DE", "IT", "FR", "NL", "CH"}
 
 class CreateReportRequest(BaseModel):
     hs_code: str = Field(..., description="4 or 6 numeric digits — entered by user")
+    origin_iso2: Optional[str] = Field(None, min_length=2, max_length=2)
     target_iso2: str = Field(..., min_length=2, max_length=2)
     unit_cost_eur: float = Field(..., gt=0)
     tier: str = Field("full", pattern="^(starter|full)$")
     certifications: list[str] = Field(default_factory=list)
     capacity_units: str = Field("<100/mo", pattern=r"^(<100/mo|100-500/mo|500\+/mo)$")
     company: Optional[str] = None
+    product_name: Optional[str] = None
+    product_desc: Optional[str] = None
+    lead_count: Optional[int] = Field(None, ge=10, le=30)
+    moq: Optional[int] = Field(None, gt=0)
+    lead_time_days: Optional[int] = Field(None, gt=0)
 
 
 class CreateReportResponse(BaseModel):
@@ -92,6 +98,50 @@ def _price_id_for_tier(tier: str) -> str:
     return price_id
 
 
+_WB6_ORIGINS = {"XK", "AL", "RS", "BA", "MK", "ME"}
+
+
+def _resolve_origin_iso2(body: CreateReportRequest, user: dict) -> str:
+    if body.origin_iso2:
+        origin = body.origin_iso2.upper()
+        if origin not in _WB6_ORIGINS:
+            raise HTTPException(
+                status_code=422,
+                detail=f"origin_iso2 '{origin}' not supported. Supported: {sorted(_WB6_ORIGINS)}",
+            )
+        return origin
+    return user.get("user_metadata", {}).get("origin_iso2", "XK").upper()
+
+
+def _is_unknown_column_error(exc: Exception) -> bool:
+    err = getattr(exc, "message", None) or str(exc)
+    if isinstance(err, dict):
+        err = err.get("message", str(err))
+    return "Could not find the" in str(err) and "column" in str(err)
+
+
+def _insert_report_row(db, report_row: dict[str, Any]) -> None:
+    """Insert report row; fall back to core columns if optional fields are not migrated yet."""
+    core_keys = {
+        "id", "manufacturer_id", "hs_code", "origin_iso2", "target_iso2",
+        "unit_cost_eur", "tier", "status", "is_test", "certifications", "capacity_units",
+    }
+    try:
+        db.table("reports").insert(report_row).execute()
+    except Exception as exc:
+        if not _is_unknown_column_error(exc):
+            raise HTTPException(status_code=502, detail=f"Could not save report: {exc}") from exc
+        core_row = {k: v for k, v in report_row.items() if k in core_keys}
+        try:
+            db.table("reports").insert(core_row).execute()
+        except Exception as retry_exc:
+            raise HTTPException(status_code=502, detail=f"Could not save report: {retry_exc}") from retry_exc
+        print(
+            "[reports] Optional report columns missing — run supabase db push. "
+            f"Dropped keys: {sorted(set(report_row) - core_keys)}"
+        )
+
+
 # ─────────────────────────────────────────
 # Routes
 # ─────────────────────────────────────────
@@ -114,13 +164,14 @@ async def create_report(
     _validate_target(body.target_iso2)
 
     user_id: str = user["id"]
-    origin_iso2 = user.get("user_metadata", {}).get("origin_iso2", "XK")
+    origin_iso2 = _resolve_origin_iso2(body, user)
 
     db = _supabase()
-    manufacturer_id = _get_or_create_manufacturer(db, user_id, origin_iso2, body.company)
+    company = body.company or body.product_name
+    manufacturer_id = _get_or_create_manufacturer(db, user_id, origin_iso2, company)
 
     report_id = str(uuid.uuid4())
-    db.table("reports").insert({
+    report_row: dict[str, Any] = {
         "id": report_id,
         "manufacturer_id": manufacturer_id,
         "hs_code": body.hs_code,
@@ -132,7 +183,19 @@ async def create_report(
         "is_test": False,
         "certifications": body.certifications,
         "capacity_units": body.capacity_units,
-    }).execute()
+    }
+    if body.product_name:
+        report_row["product_name"] = body.product_name
+    if body.product_desc:
+        report_row["product_desc"] = body.product_desc
+    if body.lead_count is not None:
+        report_row["lead_count"] = body.lead_count
+    if body.moq is not None:
+        report_row["moq"] = body.moq
+    if body.lead_time_days is not None:
+        report_row["lead_time_days"] = body.lead_time_days
+
+    _insert_report_row(db, report_row)
 
     ph = get_posthog()
     if ph:

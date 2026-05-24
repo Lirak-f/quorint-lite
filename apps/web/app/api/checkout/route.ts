@@ -31,21 +31,35 @@ export async function POST(req: Request) {
   const text = await upstream.text();
   console.log("[checkout] upstream status:", upstream.status, "body:", text);
 
-  let data: Record<string, unknown>;
-  try {
-    data = JSON.parse(text);
-  } catch {
-    return NextResponse.json(
-      { error: `Upstream error: ${text}` },
-      { status: 502 }
-    );
+  let data: Record<string, unknown> = {};
+  if (text) {
+    try {
+      data = JSON.parse(text) as Record<string, unknown>;
+    } catch {
+      return NextResponse.json(
+        { error: text || "Upstream error", detail: text },
+        { status: upstream.ok ? 502 : upstream.status }
+      );
+    }
   }
 
   if (!upstream.ok) {
-    return NextResponse.json(
-      { error: data.detail ?? "Failed to create report" },
-      { status: upstream.status }
-    );
+    const detail = data.detail;
+    const error =
+      typeof detail === "string"
+        ? detail
+        : Array.isArray(detail)
+          ? detail
+              .map((item) =>
+                item && typeof item === "object" && "msg" in item
+                  ? String((item as { msg: string }).msg)
+                  : String(item)
+              )
+              .join("; ")
+          : typeof data.error === "string"
+            ? data.error
+            : "Failed to create report";
+    return NextResponse.json({ error, detail }, { status: upstream.status });
   }
 
   return NextResponse.json(data);
