@@ -17,7 +17,8 @@ export function Nav({ userEmail }: { userEmail?: string | null }) {
   }
 
   const isAuthPage = pathname === "/login" || pathname === "/signup";
-  if (isAuthPage) return null;
+  const isLandingPage = pathname === "/";
+  if (isAuthPage || isLandingPage) return null;
 
   return (
     <header className="border-b border-slate-200 bg-white">

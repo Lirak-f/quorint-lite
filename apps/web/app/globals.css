@@ -1,17 +1,39 @@
 @import "tailwindcss";
 
 @theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  /* Fonts */
+  --font-sans: var(--font-inter);
+  --font-serif: var(--font-dm-serif);
+  --font-mono: var(--font-ibm-plex-mono);
 
+  /* Brand palette — exposed as Tailwind color utilities (text-ink, bg-green, etc.) */
+  --color-ink:        #0a0a0a;
+  --color-ink-2:      #374151;
+  --color-ink-3:      #6B7280;
+  --color-ink-4:      #9CA3AF;
+
+  --color-line:       #E5E7EB;
+  --color-line-2:     #F1F1EE;
+  --color-muted:      #F6F6F4;
+
+  --color-warm-1:     #F5EDD6;
+  --color-warm-2:     #EAD7B0;
+  --color-warm-3:     #E3CC9E;
+  --color-warm-ink:   #3B2F1E;
+
+  --color-green:      #C8E84E;
+  --color-green-deep: #9CC129;
+  --color-green-ink:  #1F2A07;
+  --color-green-hover: #bfe042;
+
+  /* Semantic aliases (used by shadcn/ui) */
   --color-background: #ffffff;
-  --color-foreground: #0f172a;
+  --color-foreground: #0a0a0a;
 
-  --color-border: #e2e8f0;
-  --color-muted: #f8fafc;
-  --color-muted-foreground: #64748b;
+  --color-border: #E5E7EB;
+  --color-muted-foreground: #6B7280;
 
-  --color-primary: #0f172a;
+  --color-primary: #0a0a0a;
   --color-primary-foreground: #ffffff;
 
   --color-destructive: #ef4444;
@@ -19,11 +41,26 @@
   --color-warning: #f59e0b;
 
   --color-card: #ffffff;
-  --color-card-border: #e2e8f0;
+  --color-card-border: #E5E7EB;
 
+  /* Radii — rounded-brand-sm etc. */
   --radius-sm: 6px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
+  --radius-md: 10px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
+  --radius-2xl: 24px;
+
+  /* Spacing extras for non-standard values used across landing */
+  --spacing-4\.5: 1.125rem;   /* 18px  → mt-4.5, py-4.5  */
+  --spacing-13:   3.25rem;    /* 52px  → mt-13            */
+  --spacing-18:   4.5rem;     /* 72px  → pt-18            */
+  --spacing-22:   5.5rem;     /* 88px  → py-22            */
+  --spacing-26:   6.5rem;     /* 104px → px-26            */
+  --spacing-30:   7.5rem;     /* 120px → py-30            */
+}
+
+html {
+  scroll-behavior: smooth;
 }
 
 body {
@@ -31,6 +68,18 @@ body {
   color: var(--color-foreground);
   font-family: var(--font-sans), system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+.font-serif {
+  font-family: var(--font-serif), 'Playfair Display', Georgia, serif;
+  font-weight: 400;
+  letter-spacing: -0.01em;
+}
+
+.font-mono-brand {
+  font-family: var(--font-mono), ui-monospace, monospace;
+  letter-spacing: -0.01em;
 }
 
 * {
