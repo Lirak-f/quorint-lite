@@ -1,0 +1,147 @@
+sector_name: plastics_rubber
+hs_chapters: ["39", "40"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Kunststoff Großhandel", "Kunststoffgranulat Großhandel", "Gummi Großhandel Deutschland"]
+  AT: ["Kunststoff Großhandel Österreich", "Gummiprodukte Großhandel Wien"]
+  IT: ["materie plastiche ingrosso", "granuli plastica ingrosso", "gomma ingrosso"]
+  FR: ["plastiques grossiste", "granulés plastique grossiste", "caoutchouc grossiste France"]
+  NL: ["kunststof groothandel", "plastic granulaat groothandel", "rubber groothandel"]
+  CH: ["Kunststoff Grosshandel Schweiz", "Gummi Grosshandel"]
+
+retail_to_wholesale_ratio: 0.72
+typical_retailer_margin: 0.28
+
+compliance_checks:
+  - id: reach_svhc_plastics
+    name: REACH SVHC Screening & Declaration (Plastics Articles)
+    type: mandatory
+    critical: true
+    cost_low_eur: 800
+    cost_high_eur: 3000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 8
+    providers:
+      - "Chemical compliance consultant"
+      - "ECHA SVHC candidate list: echa.europa.eu/candidate-list-table"
+      - "Eurofins Product Testing"
+    note: "EU REACH Article 33 — plastic articles containing SVHC (substances of very high concern) above 0.1% by weight must be declared on request or proactively if the article is supplied for use by consumers. The SVHC candidate list is updated twice yearly (now 240+ substances). Common SVHC in plastics: phthalates (DEHP, DBP), bisphenol A, flame retardants. Obtain material declarations from all suppliers."
+
+  - id: single_use_plastics
+    name: EU Single-Use Plastics Directive (2019/904/EU) Compliance
+    type: mandatory
+    critical: false
+    cost_low_eur: 1000
+    cost_high_eur: 5000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "Packaging specialist / EU regulatory consultant"
+      - "Eunomia Research & Consulting"
+    note: "EU Directive 2019/904 — certain single-use plastic products are banned from EU market (cutlery, plates, straws, cotton bud sticks, stirrers, balloon sticks). Other single-use plastics require labelling, extended producer responsibility (EPR) registration, and consumption reduction targets. Check your specific HS6 code against the SUP directive product list. EPR registration required in each target EU country."
+
+  - id: food_contact_materials
+    name: EU Food Contact Materials Regulation (EC 10/2011) — If Applicable
+    type: mandatory
+    critical: false
+    cost_low_eur: 2000
+    cost_high_eur: 8000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 16
+    providers:
+      - "Eurofins Food Contact Materials Testing"
+      - "SGS FCM Testing"
+      - "Mérieux NutriSciences"
+    note: "EU Plastics Regulation 10/2011 — plastic materials and articles intended to contact food must comply with the positive list of authorised substances (Annex I), migration limits (overall migration limit: 60 mg/kg food), and specific migration limits (SML) per substance. Declaration of Compliance (DoC) and supporting test reports required. Also applies to rubber items in food contact."
+
+  - id: rohs_plastics
+    name: RoHS Compliance (2011/65/EU) — Electronic/Electrical Plastic Components
+    type: mandatory
+    critical: false
+    cost_low_eur: 500
+    cost_high_eur: 2000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 6
+    providers:
+      - "Eurofins E&E Testing"
+      - "Intertek RoHS Testing"
+    note: "EU RoHS Directive 2011/65/EU — plastic components used in electrical and electronic equipment (EEE) must comply with RoHS restrictions on 10 hazardous substances (lead, mercury, cadmium, hexavalent chromium, PBBs, PBDEs, DEHP, BBP, DBP, DIBP). Test report required. CE marking requires RoHS Declaration of Conformity for EEE applications."
+
+  - id: iso_9001_plastics
+    name: ISO 9001:2015 Quality Management
+    type: commercial_expected
+    critical: false
+    cost_low_eur: 3000
+    cost_high_eur: 7000
+    lead_time_weeks_min: 12
+    lead_time_weeks_max: 24
+    providers:
+      - "Bureau Veritas Germany: +49 40 3233 0"
+      - "TÜV Rheinland"
+      - "SGS Germany"
+    note: "Major plastic compounders, automotive OEM suppliers, and packaging manufacturers require ISO 9001 certification. IATF 16949 required for automotive plastic parts. ISO 14001 (environmental management) increasingly demanded by EU buyers under ESG procurement requirements."
+
+buyer_filters:
+  person_titles:
+    - "purchasing manager"
+    - "procurement"
+    - "buying"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "category manager"
+    - "import manager"
+    - "product sourcing"
+  company_keywords:
+    - "importer"
+    - "wholesaler"
+    - "distributor"
+    - "Großhandel"
+    - "grossiste"
+    - "ingrosso"
+    - "groothandel"
+    - "housewares"
+    - "household products"
+    - "plastic products"
+    - "Haushaltswaren"
+    - "industrial supply"
+    - "general merchandise"
+    - "consumer goods"
+    - "storage solutions"
+  company_size_ranges: ["11-50", "51-200", "201-500"]
+
+trade_fairs:
+  - name: "Interpack Düsseldorf"
+    country: DE
+    city: Düsseldorf
+    month: 5
+    url: "https://www.interpack.com"
+  - name: "Ambiente Frankfurt"
+    country: DE
+    city: Frankfurt
+    month: 2
+    url: "https://www.ambiente.messefrankfurt.com"
+  - name: "Eisenwarenmesse Cologne"
+    country: DE
+    city: Cologne
+    month: 3
+    url: "https://www.eisenwarenmesse.de"
+  - name: "Paperworld Frankfurt"
+    country: DE
+    city: Frankfurt
+    month: 1
+    url: "https://www.paperworld.messefrankfurt.com"
+
+typical_first_order_units: 10000
+typical_compliance_cost_eur: 7000
+sample_shipping_cost_eur: 700
+
+competitor_query_template: >
+  Who are the top 3-5 plastic and rubber product exporters currently supplying
+  {target_country} manufacturers, distributors, and packaging companies in 2025?
+  Focus on suppliers from Balkans, Eastern Europe, Turkey, and Central Europe.
+  For each: product category (granules, profiles, technical parts, packaging),
+  country of origin, approximate wholesale price per kg or tonne,
+  certifications (REACH, RoHS, ISO 9001), and key customers.
+  Cite sources.

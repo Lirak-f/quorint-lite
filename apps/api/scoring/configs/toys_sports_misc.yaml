@@ -1,0 +1,156 @@
+sector_name: toys_sports_misc
+hs_chapters: ["95", "96"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Spielzeug Großhandel", "Sportartikel Großhandel Deutschland", "Hobbybedarf Großhandel"]
+  AT: ["Spielzeug Großhandel Österreich", "Sportartikel Großhandel Wien"]
+  IT: ["giocattoli ingrosso", "articoli sportivi ingrosso Italia", "hobby ingrosso"]
+  FR: ["jouets grossiste", "articles de sport grossiste France", "loisirs grossiste"]
+  NL: ["speelgoed groothandel", "sportartikelen groothandel Nederland", "hobby groothandel"]
+  CH: ["Spielzeug Grosshandel Schweiz", "Sportartikel Grosshandel"]
+
+retail_to_wholesale_ratio: 0.40
+typical_retailer_margin: 0.60
+
+compliance_checks:
+  - id: en71_toy_safety
+    name: EN 71 Toy Safety Directive CE Marking (2009/48/EC)
+    type: mandatory
+    critical: true
+    cost_low_eur: 1500
+    cost_high_eur: 8000
+    lead_time_weeks_min: 6
+    lead_time_weeks_max: 20
+    providers:
+      - "TÜV SÜD Product Service"
+      - "Bureau Veritas Consumer Products"
+      - "SGS Consumer Testing"
+      - "Eurofins Product Testing"
+    note: "EU Toy Safety Directive 2009/48/EC — all toys sold in EU must be CE marked with a technical file (Declaration of Conformity, test reports). Toy Safety Standard EN 71 has 15 parts: mechanical safety (EN 71-1), flammability (EN 71-2), chemical properties (EN 71-3 — migration of elements), electrical toys (EN 71-9), etc. EN 71-3 is critical: restricts migration of 19 elements (lead, cadmium, chromium VI, antimony, barium, etc.) from toy materials. Notified body required for categories requiring EN 71-9 (electrical) and novel risk toys."
+
+  - id: reach_phthalates_toys
+    name: REACH Restriction on Phthalates in Toys (Annex XVII Entry 51)
+    type: mandatory
+    critical: true
+    cost_low_eur: 500
+    cost_high_eur: 2000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 6
+    providers:
+      - "Eurofins Chemical Testing"
+      - "SGS Consumer Testing"
+      - "Intertek"
+    note: "EU REACH Annex XVII Entry 51 — phthalates DEHP, DBP, BBP, DIBP are restricted to <0.1% by weight in toys or childcare articles made of plasticised PVC. Test method: EN ISO 14372 or equivalent extraction test. Critical for soft plastic toys, inflatable toys, and toys with flexible PVC components. Also check EN 71-3 for heavy metal migration from paints, coatings, and printed inks."
+
+  - id: ppe_regulation_sports
+    name: EU PPE Regulation (EU 2016/425) — Protective Sports Equipment
+    type: mandatory
+    critical: false
+    cost_low_eur: 2000
+    cost_high_eur: 10000
+    lead_time_weeks_min: 6
+    lead_time_weeks_max: 20
+    providers:
+      - "Notified body: TÜV Rheinland, Bureau Veritas, SGS"
+      - "Sports equipment testing lab: Hohenstein, Centexbel"
+    note: "EU PPE Regulation 2016/425 — personal protective equipment for sports (helmets, protective clothing, gloves, eye protection for sports) requires CE marking. Category I (minimal risk): self-certification. Category II (intermediate risk): notified body involvement. Category III (complex design, severe risk — mountaineering harnesses, diving equipment): mandatory type examination by notified body. Harmonised standards: EN 1077 (ski helmets), EN 1078 (bicycle helmets), EN 13158 (equestrian protection)."
+
+  - id: en_15649_water_toys
+    name: EN 15649 — Floating Leisure Articles (Water Toys)
+    type: mandatory
+    critical: false
+    cost_low_eur: 1500
+    cost_high_eur: 5000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "Bureau Veritas Marine/Consumer"
+      - "SGS Water Toy Testing"
+    note: "EN 15649 — inflatable toys and floating leisure articles for use on and in water (beyond wading depth, not swimming pools) must comply with EN 15649 (6 parts covering buoyancy, stability, maximum user weight, labelling). CE marking required. Risk categories determine whether self-certification or third-party testing applies. For pool inflatables used recreationally (not life-saving), Toy Safety Directive applies instead."
+
+  - id: weee_electronics_toys
+    name: WEEE Compliance — Electronic Toys & Games (2012/19/EU)
+    type: mandatory
+    critical: false
+    cost_low_eur: 300
+    cost_high_eur: 1000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 6
+    providers:
+      - "WEEE compliance scheme: Landbell, ERP Europe, Recupel (BE)"
+      - "National WEEE producer registry in each EU country"
+    note: "EU WEEE Directive 2012/19/EU — toys with electronic components (remote-controlled toys, electronic games, battery-operated toys) require producer registration in each EU country where sold. Annual WEEE tonnage reporting. Take-back obligation. Registration in Germany (ear.juristeninfo.de), Austria (EAK register), etc. RoHS compliance also required. Use a pan-EU WEEE compliance scheme to simplify multi-country registration."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "toy buyer"
+    - "sports buyer"
+    - "category manager"
+  company_keywords:
+    - "Spielzeug"
+    - "giocattoli"
+    - "jouets"
+    - "toys"
+    - "Sportartikel"
+    - "articoli sportivi"
+    - "articles sportifs"
+    - "sports equipment"
+    - "Hobby"
+    - "Freizeitartikel"
+    - "leisure"
+    - "Fahrrad"
+    - "biciclette"
+    - "vélo"
+    - "bicycle"
+    - "outdoor"
+    - "camping"
+    - "toy wholesale"
+    - "Spielwarenhandel"
+  company_size_ranges: ["11-50", "51-200", "201-500"]
+
+trade_fairs:
+  - name: "Spielwarenmesse Nuremberg"
+    country: DE
+    city: Nuremberg
+    month: 2
+    url: "https://www.spielwarenmesse.de"
+  - name: "ISPO Munich"
+    country: DE
+    city: Munich
+    month: 1
+    url: "https://www.ispo.com"
+  - name: "Kind + Jugend Cologne"
+    country: DE
+    city: Cologne
+    month: 9
+    url: "https://www.kindundjugend.com"
+  - name: "SPOGA+GAFA Cologne (Outdoor/Sports)"
+    country: DE
+    city: Cologne
+    month: 9
+    url: "https://www.spogagafa.com"
+  - name: "Eurobike Frankfurt"
+    country: DE
+    city: Frankfurt
+    month: 7
+    url: "https://www.eurobike.com"
+
+typical_first_order_units: 3000
+typical_compliance_cost_eur: 6000
+sample_shipping_cost_eur: 500
+
+competitor_query_template: >
+  Who are the top 3-5 toy and sports equipment exporters currently supplying
+  {target_country} toy retailers, sporting goods chains, and distributors in 2025?
+  Focus on suppliers from Balkans, Eastern Europe (Poland, Czech Republic), Turkey, and
+  established Asian suppliers with EU presence.
+  For each: product category, country of origin, approximate wholesale price per unit,
+  certifications held (EN 71, CE, OEKO-TEX for textiles), and key retail/wholesale customers.
+  Cite sources.

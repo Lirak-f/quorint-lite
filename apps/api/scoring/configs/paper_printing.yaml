@@ -1,0 +1,148 @@
+sector_name: paper_printing
+hs_chapters: ["45", "46", "47", "48", "49"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Papier Großhandel", "Verpackung Papier Großhandel Deutschland", "Karton Großhandel"]
+  AT: ["Papier Großhandel Österreich", "Wellpappe Großhandel Wien"]
+  IT: ["carta ingrosso", "imballaggi carta ingrosso Italia", "cartone ingrosso"]
+  FR: ["papier grossiste", "emballages carton grossiste France", "papier kraft grossiste"]
+  NL: ["papier groothandel", "karton verpakking groothandel Nederland", "papieren zakken"]
+  CH: ["Papier Grosshandel Schweiz", "Verpackungsmaterial Grosshandel"]
+
+retail_to_wholesale_ratio: 0.78
+typical_retailer_margin: 0.22
+
+compliance_checks:
+  - id: fsc_pefc_certification
+    name: FSC or PEFC Chain-of-Custody Certification
+    type: commercial_expected
+    critical: false
+    cost_low_eur: 1500
+    cost_high_eur: 5000
+    lead_time_weeks_min: 8
+    lead_time_weeks_max: 20
+    providers:
+      - "FSC: info.fsc.org — accredited certification body list"
+      - "PEFC: pefc.org — national PEFC bodies"
+      - "Bureau Veritas, SGS, Rainforest Alliance"
+    note: "Forest Stewardship Council (FSC) or PEFC chain-of-custody certification is a commercial prerequisite for major EU paper and packaging buyers. Without FSC/PEFC, access to retail chains (REWE, Carrefour, Lidl) and major publishers is restricted. EU Deforestation Regulation (EUDR) 2023/1115 makes traceability documentation mandatory for wood-derived products from Dec 2025."
+
+  - id: eudr_compliance
+    name: EU Deforestation Regulation (EUDR) Due Diligence — EU 2023/1115
+    type: mandatory
+    critical: true
+    cost_low_eur: 1000
+    cost_high_eur: 4000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "EU EUDR information system (when operational): eudr.ec.europa.eu"
+      - "Supply chain traceability consultant"
+      - "Earthworm Foundation"
+    note: "EU Regulation 2023/1115 (EUDR) — from 30 December 2025, all operators placing wood pulp (HS 47) and paper/board (HS 48) on the EU market must conduct due diligence to verify the products are not linked to deforestation. Requires: geolocation data of forest origin, country risk classification assessment, and due diligence statement before first import. Replaces EU Timber Regulation (EUTR) for wood-derived products."
+
+  - id: food_contact_paper
+    name: EU Food Contact Paper Compliance (EC 1935/2004 + National Frameworks)
+    type: mandatory
+    critical: false
+    cost_low_eur: 1500
+    cost_high_eur: 6000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 16
+    providers:
+      - "Eurofins Food Contact Testing"
+      - "SGS Food Contact Materials"
+      - "Paper and Board Technical Association (PITA)"
+    note: "EU Framework Regulation 1935/2004 — paper and board in contact with food must not transfer substances in harmful quantities. Germany (BfR Recommendations), France (DGCCRF national framework), and the Netherlands have national frameworks pending EU harmonisation. Test migration of primary aromatic amines, mineral oil hydrocarbons (MOAH/MOSH), and printing ink components. Required for food-grade paper packaging."
+
+  - id: reach_printing_inks
+    name: REACH Compliance for Printing Inks & Coatings
+    type: mandatory
+    critical: false
+    cost_low_eur: 500
+    cost_high_eur: 2000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 6
+    providers:
+      - "Ink supplier REACH declarations"
+      - "EuPIA (European Printing Ink Association) guidelines"
+    note: "EU REACH — printing inks used on paper (HS 49 printed matter, HS 48 coated paper) must comply with REACH substance restrictions. EuPIA Exclusion List restricts certain substances in food-contact printing inks. Obtain substance declarations from ink suppliers. PAH (polycyclic aromatic hydrocarbons) restrictions also apply to printed paper articles."
+
+  - id: iso_9001_paper
+    name: ISO 9001:2015 Quality Management
+    type: commercial_expected
+    critical: false
+    cost_low_eur: 3000
+    cost_high_eur: 7000
+    lead_time_weeks_min: 12
+    lead_time_weeks_max: 24
+    providers:
+      - "Bureau Veritas"
+      - "SGS"
+      - "TÜV Rheinland"
+    note: "Major packaging buyers and publishers require ISO 9001 certification. ISO 14001 (environmental management) is increasingly expected given EU Green Deal pressure on packaging. ISO 22000 (food safety management) required for food-contact packaging manufacturers."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "packaging buyer"
+    - "paper buyer"
+    - "print buyer"
+  company_keywords:
+    - "Papiergroßhandel"
+    - "paper wholesaler"
+    - "paper distributor"
+    - "Papierimport"
+    - "carta ingrosso"
+    - "grossiste papier"
+    - "Verpackungsgroßhandel"
+    - "packaging wholesaler"
+    - "packaging distributor"
+    - "emballage grossiste"
+    - "imballaggi ingrosso"
+    - "Kartonhandel"
+    - "carton distributor"
+    - "cork wholesale"
+    - "Korkhandel"
+  company_size_ranges: ["11-50", "51-200", "201-500"]
+
+trade_fairs:
+  - name: "drupa Düsseldorf"
+    country: DE
+    city: Düsseldorf
+    month: 5
+    url: "https://www.drupa.com"
+  - name: "Fachpack Nuremberg"
+    country: DE
+    city: Nuremberg
+    month: 9
+    url: "https://www.fachpack.de"
+  - name: "Luxe Pack Monaco"
+    country: MC
+    city: Monaco
+    month: 10
+    url: "https://www.luxepack.com"
+  - name: "Paperworld Frankfurt"
+    country: DE
+    city: Frankfurt
+    month: 1
+    url: "https://www.paperworld.messefrankfurt.com"
+
+typical_first_order_units: 15000
+typical_compliance_cost_eur: 5000
+sample_shipping_cost_eur: 900
+
+competitor_query_template: >
+  Who are the top 3-5 paper, packaging, and printing product exporters currently supplying
+  {target_country} packaging companies, publishers, and distributors in 2025?
+  Focus on suppliers from Balkans, Eastern Europe (Poland, Czech Republic, Hungary), and Scandinavia.
+  For each: product category (kraft paper, corrugated board, printed matter, cork),
+  country of origin, approximate wholesale price per tonne or unit,
+  certifications held (FSC, PEFC, ISO 9001), and key customers.
+  Cite sources.

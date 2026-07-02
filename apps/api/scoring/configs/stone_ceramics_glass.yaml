@@ -1,0 +1,157 @@
+sector_name: stone_ceramics_glass
+hs_chapters: ["68", "69", "70", "71"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Fliesen Großhandel", "Keramik Großhandel Deutschland", "Naturstein Großhandel"]
+  AT: ["Fliesen Großhandel Österreich", "Glas Großhandel Wien", "Edelstein Großhandel"]
+  IT: ["ceramiche ingrosso", "piastrelle ingrosso Italia", "vetro ingrosso"]
+  FR: ["carrelage grossiste", "céramique grossiste France", "verre grossiste"]
+  NL: ["tegels groothandel", "keramiek groothandel Nederland", "glas groothandel"]
+  CH: ["Fliesen Grosshandel Schweiz", "Schmuck Grosshandel"]
+
+retail_to_wholesale_ratio: 0.55
+typical_retailer_margin: 0.45
+
+compliance_checks:
+  - id: ce_marking_construction_products
+    name: CE Marking — Construction Products Regulation (EU 305/2011)
+    type: mandatory
+    critical: true
+    cost_low_eur: 3000
+    cost_high_eur: 12000
+    lead_time_weeks_min: 8
+    lead_time_weeks_max: 24
+    providers:
+      - "TÜV Austria: tuv.at"
+      - "Bureau Veritas Construction"
+      - "Notified body per EN 14411 (tiles) or EN 197 (cement products)"
+    note: "EU Construction Products Regulation 305/2011 — ceramic tiles (HS 69), stone products (HS 68), and glass for construction (HS 70) used in buildings require CE marking and a Declaration of Performance (DoP). Test standards: EN 14411 (ceramic tiles), EN 12058 (natural stone slabs), EN 572 (glass). Factory Production Control (FPC) audit by notified body required for system 2+ products. CE mark must appear on product or packaging."
+
+  - id: reach_natural_stone
+    name: REACH SVHC Screening — Natural Stone & Mineral-Based Products
+    type: mandatory
+    critical: false
+    cost_low_eur: 300
+    cost_high_eur: 1000
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 4
+    providers:
+      - "Material supplier declarations"
+      - "ECHA candidate list check: echa.europa.eu"
+    note: "EU REACH Article 33 — stone articles containing SVHC >0.1% by weight must be declared. Most natural stones (granite, marble, limestone) are not SVHC-containing, but glazes and surface treatments on ceramic tiles may contain lead, cadmium, or other restricted substances. Obtain material safety declarations from glaze suppliers. Verify compliance of any colorants."
+
+  - id: eu_precious_metals_hallmarking
+    name: EU Precious Metals Hallmarking (HS 71 — Jewellery)
+    type: mandatory
+    critical: false
+    cost_low_eur: 500
+    cost_high_eur: 2000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 8
+    providers:
+      - "National assay office in destination country (e.g., Wiener Prüfanstalt, Vienna)"
+      - "CEPT Convention hallmarking agreement"
+    note: "Common Controls Hallmarking Convention (CEPT) — precious metal articles (gold, silver, platinum) sold in EU must bear a fineness hallmark. Germany, Austria, and most EU countries require hallmarking. Mark may be applied by the assay office of the destination country on import. UK Hallmarking Act applies for UK market. Convention hallmarks (common control mark) accepted across signatory states. Self-declaration of fineness not sufficient in most EU markets."
+
+  - id: kimberley_process_diamonds
+    name: Kimberley Process Certification Scheme — Rough Diamonds (HS 71)
+    type: mandatory
+    critical: false
+    cost_low_eur: 300
+    cost_high_eur: 1000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 6
+    providers:
+      - "National Kimberley Process authority in exporting country"
+      - "EU: European Commission DG TRADE"
+    note: "Kimberley Process Certification Scheme — rough diamonds (HS 7102) must be accompanied by a Kimberley Process Certificate confirming they are conflict-free. EU Council Regulation 2368/2002 implements KP in EU. Requires sealed tamper-proof containers and KP certificates from country of origin authority. Applies to WB6 countries if any rough diamond trade exists."
+
+  - id: en_1279_insulated_glass
+    name: EN 1279 — Insulating Glass Units Performance Standard (HS 70)
+    type: mandatory
+    critical: false
+    cost_low_eur: 2000
+    cost_high_eur: 8000
+    lead_time_weeks_min: 6
+    lead_time_weeks_max: 16
+    providers:
+      - "IFT Rosenheim (glass testing)"
+      - "SGS Glass Testing"
+      - "Glass manufacturer QA lab"
+    note: "EN 1279 (Parts 1-6) — insulating glass units (double/triple glazing) sold in EU require CE marking and performance declaration per EN ISO 10077. EU Construction Products Regulation requires factory production control certification for IGUs. Test: initial type testing + ongoing FPC. Major importers (window manufacturers, glazing contractors) will require EN 1279 certification documentation."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "construction buyer"
+    - "tile buyer"
+    - "jewellery buyer"
+    - "import manager"
+  company_keywords:
+    - "fliesen"
+    - "ceramiche"
+    - "carrelage"
+    - "tiles"
+    - "Naturstein"
+    - "pietra naturale"
+    - "pierre naturelle"
+    - "natural stone"
+    - "Baustoffhandel"
+    - "construction materials"
+    - "glas"
+    - "vetro"
+    - "verre"
+    - "glass wholesale"
+    - "juwelier"
+    - "gioielleria"
+    - "bijouterie"
+    - "jewellery wholesale"
+    - "gem trader"
+  company_size_ranges: ["11-50", "51-200", "201-500"]
+
+trade_fairs:
+  - name: "Cersaie Bologna"
+    country: IT
+    city: Bologna
+    month: 9
+    url: "https://www.cersaie.it"
+  - name: "BAU Munich"
+    country: DE
+    city: Munich
+    month: 1
+    url: "https://www.bau-muenchen.com"
+  - name: "Vitrum Milan"
+    country: IT
+    city: Milan
+    month: 9
+    url: "https://www.vitrum-milano.com"
+  - name: "Inhorgenta Munich (Jewellery)"
+    country: DE
+    city: Munich
+    month: 2
+    url: "https://www.inhorgenta.com"
+  - name: "Coverings (Tile & Stone) — European exhibitors"
+    country: US
+    city: Orlando
+    month: 4
+    url: "https://www.coverings.com"
+
+typical_first_order_units: 3000
+typical_compliance_cost_eur: 8000
+sample_shipping_cost_eur: 1200
+
+competitor_query_template: >
+  Who are the top 3-5 ceramic tile, natural stone, glass, and jewellery exporters currently
+  supplying {target_country} construction distributors, tile retailers, and jewellery wholesalers
+  in 2025?
+  Focus on suppliers from Balkans (Kosovo, Albania, Serbia, Bosnia, North Macedonia),
+  Turkey, Italy, and Spain.
+  For each: product category, country of origin, approximate wholesale price per m² or unit,
+  certifications held (CE marking, EN 14411, hallmarking), and key buyers.
+  Cite sources.

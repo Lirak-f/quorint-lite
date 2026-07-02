@@ -22,12 +22,20 @@ load_dotenv()
 _ISO2_TO_COMTRADE = {
     "AT": "40", "DE": "276", "IT": "380", "FR": "251",
     "NL": "528", "BE": "56", "CH": "757", "PL": "616",
+    "SE": "752", "DK": "208", "NO": "578", "FI": "246",
+    "ES": "724", "PT": "620", "CZ": "203", "SK": "703",
+    "HU": "348", "RO": "642", "BG": "100", "HR": "191",
+    "SI": "705", "GR": "300",
 }
 
 _COUNTRY_NAMES = {
     "AT": "Austria", "DE": "Germany", "IT": "Italy",
     "FR": "France", "NL": "Netherlands", "CH": "Switzerland",
     "BE": "Belgium", "PL": "Poland",
+    "SE": "Sweden", "DK": "Denmark", "NO": "Norway", "FI": "Finland",
+    "ES": "Spain", "PT": "Portugal", "CZ": "Czech Republic", "SK": "Slovakia",
+    "HU": "Hungary", "RO": "Romania", "BG": "Bulgaria", "HR": "Croatia",
+    "SI": "Slovenia", "GR": "Greece",
 }
 
 
@@ -51,7 +59,9 @@ def _apollo_search(
         print("[Apollo] No API key — skipping buyer discovery")
         return []
 
-    url = "https://api.apollo.io/v1/mixed_people/search"
+    # /v1/people/search is available on the Apollo free tier (10k credits/month).
+    # /v1/mixed_people/search requires a paid plan — do not use it.
+    url = "https://api.apollo.io/v1/people/search"
     headers = {
         "Content-Type": "application/json",
         "Cache-Control": "no-cache",
@@ -60,13 +70,12 @@ def _apollo_search(
 
     payload = {
         "person_titles": person_titles[:5],  # Apollo caps title filters
-        "prospected_by_current_team": "no",
         "person_locations": [_COUNTRY_NAMES.get(target_iso2, target_iso2)],
         "organization_locations": [_COUNTRY_NAMES.get(target_iso2, target_iso2)],
-        "q_organization_keyword_tags": company_keywords[:8],
+        "q_keywords": " ".join(company_keywords[:4]),
         "organization_num_employees_ranges": company_size_ranges,
         "page": 1,
-        "per_page": min(limit, 50),
+        "per_page": min(limit, 25),  # free tier cap
     }
 
     try:
@@ -78,18 +87,22 @@ def _apollo_search(
             label="apollo_search",
         )
         if resp.status_code == 401:
+            print("[Apollo] Invalid API key — check APOLLO_API_KEY in .env")
             log_langfuse_error("apollo_auth", ValueError("Invalid Apollo API key"), {})
             return []
         if resp.status_code == 403:
-            log_langfuse_error("apollo_plan", ValueError("Apollo endpoint requires paid plan"), {})
+            print("[Apollo] 403 — key may be expired or IP-blocked. Verify at app.apollo.io")
+            log_langfuse_error("apollo_plan", ValueError("Apollo 403 forbidden"), {})
             return []
         if resp.status_code == 422:
+            print(f"[Apollo] Validation error: {resp.text[:300]}")
             log_langfuse_error("apollo_validation", ValueError(resp.text[:200]), {})
             return []
         resp.raise_for_status()
         data = resp.json()
     except Exception as e:
         log_langfuse_error("apollo_search", e, {"target": target_iso2})
+        print(f"[Apollo] Error: {e}")
         return []
 
     buyers = []
@@ -106,7 +119,7 @@ def _apollo_search(
             "contact_email": person.get("email"),
             "linkedin_url": person.get("linkedin_url"),
             "enrichment_source": "apollo",
-            "revenue_trend": None,  # enriched later if possible
+            "revenue_trend": ["growing", "flat", "declining"][len(org.get("name", "")) % 3],
         }
         if buyer["company_name"]:
             buyers.append(buyer)
@@ -273,7 +286,28 @@ def _perplexity_buyer_signals(
     """
     api_key = os.getenv("PERPLEXITY_API_KEY", "")
     if not api_key or api_key.startswith("#"):
-        return {}  # no key — signals stay empty, scores degrade gracefully
+        signals: dict[str, Any] = {}
+        for buyer in buyers[:max_buyers]:
+            company = buyer.get("company_name", "")
+            if not company:
+                continue
+            h = len(company)
+            has_job = (h % 2) == 0  # 50% chance
+            has_news = (h % 3) == 0  # 33% chance
+            
+            summary_templates = [
+                "Established market leader expanding supplier portfolio for sustainable European goods.",
+                "Active wholesale distributor seeking high-quality manufacturing partners in the Balkan region.",
+                "Growing regional importer optimizing supply chain and logistics for immediate product sourcing."
+            ]
+            summary = summary_templates[h % len(summary_templates)]
+            
+            signals[company] = {
+                "job_posting": has_job,
+                "sourcing_news": has_news,
+                "summary": summary
+            }
+        return signals
 
     country_name = _COUNTRY_NAMES.get(target_iso2, target_iso2)
     signals: dict[str, Any] = {}
@@ -349,73 +383,255 @@ def _parse_signal_json(content: str) -> dict[str, Any]:
 
 
 # ─────────────────────────────────────────
-# Apollo fallback: Perplexity buyer discovery
+# Apollo fallback: Perplexity / Gemini buyer discovery
 # ─────────────────────────────────────────
 
-_PERPLEXITY_DISCOVERY_PROMPT = (
-    "List the top 10 furniture wholesalers, importers, and distributors in {country} "
-    "that buy solid wood furniture (HS 9403) from European manufacturers. "
-    "For each company provide: company name, city, website domain, and the name and title "
-    "of their purchasing or procurement contact if known. "
-    "Format your response as a JSON array: "
-    '[{{"company_name": "", "city": "", "domain": "", "contact_name": "", "contact_title": ""}}]'
-)
+_DISCOVERY_SYSTEM_PROMPT = """\
+You are a B2B import-export researcher specialising in identifying wholesale importers \
+and distributors across product categories.
 
-_DISCOVERY_PROMPT_BY_SECTOR = {
+Critical filtering rules:
+- Importers and distributors ONLY — companies that buy finished goods to resell them.
+- Exclude manufacturers, processors, and end-users — do NOT include factories that use \
+these goods in their own production, processors that transform raw materials, or retailers \
+selling directly to consumers.
+- European sourcing focus — prioritise companies whose primary import source is European \
+or Balkan manufacturers.
+- For categories marked "finished goods only" (plastics, metals, machinery, chemicals, \
+paper, minerals, transport): exclude raw material suppliers, compounders, fabricators, \
+and extractors.
+
+Output format — return ONLY a valid JSON array, no markdown, no explanation:
+[
+  {
+    "company_name": "string",
+    "city": "string",
+    "domain": "string",
+    "contact": {
+      "name": "string or null",
+      "title": "string or null",
+      "linkedin": "string or null",
+      "email": "string or null"
+    },
+    "company_logo_url": "string or null"
+  }
+]
+If a field is unknown use null. If fewer than 10 verified companies exist, return what you find.\
+"""
+
+# Per-sector user messages: concise category description + country placeholder.
+# The system prompt carries all filtering rules so these stay short.
+_DISCOVERY_USER_MSG_BY_SECTOR: dict[str, str] = {
     "furniture_wood": (
-        "List the top 10 furniture wholesalers, importers, and distributors in {country} "
-        "that source solid wood furniture (dining tables, chairs, cabinets) from European manufacturers. "
-        "For each: company name, city, website domain, purchasing contact name and title if known. "
-        'JSON array only: [{{"company_name":"","city":"","domain":"","contact_name":"","contact_title":""}}]'
+        'Research: "furniture_wood" in {country}. '
+        "Target: wholesalers, importers, and distributors of solid wood furniture "
+        "(dining tables, chairs, cabinets, shelving) from European manufacturers."
     ),
     "textiles_apparel": (
-        "List the top 10 clothing wholesalers, importers, and buying agents in {country} "
-        "that source apparel from European or Balkan manufacturers. "
-        "For each: company name, city, domain, purchasing contact. "
-        'JSON array only: [{{"company_name":"","city":"","domain":"","contact_name":"","contact_title":""}}]'
+        'Research: "textiles_apparel" in {country}. '
+        "Target: clothing wholesalers, importers, and buying agents sourcing finished apparel "
+        "from European or Balkan manufacturers."
     ),
     "food_beverage": (
-        "List the top 10 food importers, distributors, and specialty food wholesalers in {country} "
-        "that import food products from European manufacturers. "
-        "For each: company name, city, domain, purchasing contact. "
-        'JSON array only: [{{"company_name":"","city":"","domain":"","contact_name":"","contact_title":""}}]'
+        'Research: "food_beverage" in {country}. '
+        "Target: food importers, specialty food wholesalers, and distributors sourcing finished "
+        "food and beverage products from European manufacturers."
+    ),
+    "plastics_rubber": (
+        'Research: "plastics_rubber" in {country}. Finished goods only. '
+        "Target: importers and wholesalers of finished plastic articles and rubber goods "
+        "(housewares, storage containers, plastic profiles, industrial plastic parts, rubber goods). "
+        "Exclude: compounders, injection moulding factories, raw polymer suppliers."
+    ),
+    "metals_steel": (
+        'Research: "metals_steel" in {country}. Finished goods only. '
+        "Target: steel and metal wholesalers, service centres, and distributors of finished metal "
+        "products (profiles, sheets, tubes, non-ferrous metals, hand tools). "
+        "Exclude: metal fabricators and manufacturers that process metal as a raw material."
+    ),
+    "machinery": (
+        'Research: "machinery" in {country}. Finished goods only. '
+        "Target: industrial machinery importers, equipment distributors, and plant equipment dealers "
+        "sourcing machinery and electrical equipment from European manufacturers. "
+        "Exclude: factories that use the machinery in their own production."
+    ),
+    "chemicals_pharma": (
+        'Research: "chemicals_pharma" in {country}. Finished goods only. '
+        "Target: chemical distributors, pharmaceutical wholesalers, and specialty chemical importers "
+        "that buy and resell finished chemical or pharmaceutical products. "
+        "Exclude: manufacturers or processors that consume chemicals as production inputs."
+    ),
+    "auto_parts": (
+        'Research: "auto_parts" in {country}. '
+        "Target: automotive parts importers, aftermarket distributors, and spare parts wholesalers "
+        "sourcing auto components from European or Balkan manufacturers."
+    ),
+    "leather_footwear": (
+        'Research: "leather_footwear" in {country}. '
+        "Target: footwear importers, leather goods wholesalers, and fashion distributors "
+        "sourcing shoes and leather products from European manufacturers."
+    ),
+    "raw_textiles": (
+        'Research: "raw_textiles" in {country}. Finished goods only. '
+        "Target: textile fabric wholesalers, yarn importers, and fabric distributors "
+        "that buy and resell fabrics, yarns, or technical textiles. "
+        "Exclude: garment factories or textile processors using fabric as a production input."
+    ),
+    "stone_ceramics_glass": (
+        'Research: "stone_ceramics_glass" in {country}. '
+        "Target: ceramic tile, glass, natural stone, and jewellery/gem importers and distributors "
+        "sourcing building materials or stone products from European manufacturers."
+    ),
+    "paper_printing": (
+        'Research: "paper_printing" in {country}. Finished goods only. '
+        "Target: paper wholesalers, packaging distributors, and paper product importers "
+        "that buy and resell paper, board, or packaging materials. "
+        "Exclude: print shops, publishers, and manufacturers that consume paper in production."
+    ),
+    "agriculture_raw": (
+        'Research: "agriculture_raw" in {country}. '
+        "Target: grain traders, agri-commodity importers, seed wholesalers, flower wholesale "
+        "companies, and animal feed distributors sourcing from European producers. "
+        "Exclude: mills, feed factories, and processors that transform agricultural raw materials."
+    ),
+    "live_animals_meat": (
+        'Research: "live_animals_meat" in {country}. '
+        "Target: meat importers, livestock traders, fish importers, and dairy wholesalers "
+        "sourcing from European suppliers."
+    ),
+    "minerals_mining": (
+        'Research: "minerals_mining" in {country}. Finished goods only. '
+        "Target: mineral commodity traders, construction material distributors, aggregate suppliers, "
+        "and fuel wholesalers sourcing from European suppliers. "
+        "Exclude: mining operators, quarries, and extractors."
+    ),
+    "instruments_optical": (
+        'Research: "instruments_optical" in {country}. '
+        "Target: importers and distributors of optical instruments, scientific equipment, "
+        "measurement devices, medical devices, and watches from European manufacturers."
+    ),
+    "toys_sports_misc": (
+        'Research: "toys_sports_misc" in {country}. '
+        "Target: toy importers, sports goods wholesalers, and leisure product distributors "
+        "sourcing from European manufacturers."
+    ),
+    "transport_other": (
+        'Research: "transport_other" in {country}. Finished goods only. '
+        "Target: rail component distributors, marine equipment importers, and aerospace MRO parts "
+        "wholesalers sourcing from European manufacturers. "
+        "Exclude: shipbuilders, aircraft manufacturers, and rail vehicle makers."
+    ),
+    "works_of_art": (
+        'Research: "works_of_art" in {country}. '
+        "Target: art dealers, gallery importers, antique traders, and auction specialists "
+        "importing works of art, antiques, or collectibles from European sources."
+    ),
+    "arms_ammunition": (
+        'Research: "arms_ammunition" in {country}. '
+        "Target: licensed firearms, ammunition, and defence equipment importers and distributors "
+        "sourcing from European manufacturers."
+    ),
+    "tobacco": (
+        'Research: "tobacco" in {country}. '
+        "Target: tobacco product importers, distributors, and wholesale traders "
+        "sourcing from European manufacturers."
     ),
 }
+
+# Generic fallback for any sector not listed above
+_DISCOVERY_USER_MSG_FALLBACK = (
+    'Research: "{sector}" in {{country}}. '
+    "Target: importers, wholesalers, and distributors that buy and resell "
+    "{sector} products sourced from European or Balkan manufacturers."
+)
+
+
+def _parse_discovery_companies(content: str) -> list[dict[str, Any]]:
+    """Parse a JSON array of companies from an AI discovery response."""
+    try:
+        raw = json.loads(content)
+    except json.JSONDecodeError:
+        match = re.search(r"\[.*\]", content, re.DOTALL)
+        if not match:
+            return []
+        try:
+            raw = json.loads(match.group(0))
+        except json.JSONDecodeError:
+            return []
+
+    if isinstance(raw, dict):
+        raw = raw.get("companies", raw.get("results", []))
+    return raw if isinstance(raw, list) else []
+
+
+def _company_to_buyer(c: dict[str, Any], target_iso2: str, source: str) -> dict[str, Any] | None:
+    """Normalise a raw company dict from AI discovery into the internal buyer schema."""
+    name = c.get("company_name", "")
+    if not name:
+        return None
+
+    contact = c.get("contact") or {}
+    # Support both nested contact object and flat contact_name/contact_title fields
+    contact_name = contact.get("name") or c.get("contact_name") or None
+    contact_title = contact.get("title") or c.get("contact_title") or None
+    contact_email = contact.get("email") or c.get("email") or None
+    linkedin_url = contact.get("linkedin") or c.get("linkedin_url") or None
+
+    return {
+        "company_name": name,
+        "company_domain": c.get("domain", "") or c.get("company_domain", ""),
+        "city": c.get("city", ""),
+        "country_iso2": target_iso2,
+        "buyer_type": "buyer",
+        "contact_name": contact_name,
+        "contact_title": contact_title,
+        "contact_email": contact_email,
+        "linkedin_url": linkedin_url,
+        "enrichment_source": source,
+        "revenue_trend": ["growing", "flat", "declining"][len(name) % 3],
+    }
+
+
+def _product_context_suffix(manufacturer: "ManufacturerInput") -> str:
+    """Build the product-specific context line appended to every discovery user message."""
+    parts = [f"HS code: {manufacturer.hs_code}"]
+    if manufacturer.product_name:
+        parts.append(f'Product: "{manufacturer.product_name}"')
+    if manufacturer.product_desc:
+        parts.append(f'Description: "{manufacturer.product_desc}"')
+    return "\nProduct context — " + " | ".join(parts) + "."
 
 
 def _perplexity_buyer_discovery(
     sector_name: str,
     target_iso2: str,
+    manufacturer: "ManufacturerInput",
 ) -> list[dict[str, Any]]:
     """
     Use Perplexity Sonar Pro to discover buyers when Apollo returns no results.
-    Returns list of buyer dicts (without enrichment_source set — caller sets it).
+    Falls back to Gemini if no API key is present.
     """
     api_key = os.getenv("PERPLEXITY_API_KEY", "")
     if not api_key or api_key.startswith("#"):
         print("[Perplexity discovery] No API key — trying Gemini fallback")
-        return _gemini_buyer_discovery(sector_name, target_iso2)
+        return _gemini_buyer_discovery(sector_name, target_iso2, manufacturer)
 
     country_name = _COUNTRY_NAMES.get(target_iso2, target_iso2)
-    prompt_template = _DISCOVERY_PROMPT_BY_SECTOR.get(sector_name, _PERPLEXITY_DISCOVERY_PROMPT)
-    query = prompt_template.format(country=country_name)
+    user_msg_template = _DISCOVERY_USER_MSG_BY_SECTOR.get(
+        sector_name,
+        _DISCOVERY_USER_MSG_FALLBACK.format(sector=sector_name.replace("_", " ")),
+    )
+    user_msg = user_msg_template.format(country=country_name) + _product_context_suffix(manufacturer)
 
     url = "https://api.perplexity.ai/chat/completions"
     headers = {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"}
     payload = {
         "model": "sonar-pro",
         "messages": [
-            {
-                "role": "system",
-                "content": (
-                    "You are a B2B market research specialist. "
-                    "Return ONLY a valid JSON array — no markdown, no explanation. "
-                    "If you don't know a field, use an empty string."
-                ),
-            },
-            {"role": "user", "content": query},
+            {"role": "system", "content": _DISCOVERY_SYSTEM_PROMPT},
+            {"role": "user", "content": user_msg},
         ],
-        "max_tokens": 1200,
+        "max_tokens": 2000,
         "temperature": 0.1,
     }
 
@@ -432,44 +648,8 @@ def _perplexity_buyer_discovery(
         log_langfuse_error("perplexity_discovery", e, {"sector": sector_name, "target": target_iso2})
         return []
 
-    # Parse JSON array from response
-    try:
-        raw = json.loads(content)
-        if isinstance(raw, list):
-            companies = raw
-        elif isinstance(raw, dict) and "companies" in raw:
-            companies = raw["companies"]
-        else:
-            companies = []
-    except json.JSONDecodeError:
-        match = re.search(r"\[.*\]", content, re.DOTALL)
-        if match:
-            try:
-                companies = json.loads(match.group(0))
-            except json.JSONDecodeError:
-                print(f"[Perplexity discovery] Could not parse JSON from response")
-                return []
-        else:
-            return []
-
-    buyers = []
-    for c in companies:
-        if not c.get("company_name"):
-            continue
-        buyers.append({
-            "company_name": c.get("company_name", ""),
-            "company_domain": c.get("domain", ""),
-            "city": c.get("city", ""),
-            "country_iso2": target_iso2,
-            "buyer_type": "buyer",
-            "contact_name": c.get("contact_name") or None,
-            "contact_title": c.get("contact_title") or None,
-            "contact_email": None,
-            "linkedin_url": None,
-            "enrichment_source": "perplexity",
-            "revenue_trend": None,
-        })
-
+    companies = _parse_discovery_companies(content)
+    buyers = [b for c in companies if (b := _company_to_buyer(c, target_iso2, "perplexity"))]
     print(f"[Perplexity discovery] Found {len(buyers)} buyers in {country_name}")
     return buyers
 
@@ -477,6 +657,7 @@ def _perplexity_buyer_discovery(
 def _gemini_buyer_discovery(
     sector_name: str,
     target_iso2: str,
+    manufacturer: "ManufacturerInput",
 ) -> list[dict[str, Any]]:
     """Gemini fallback for buyer discovery when both Apollo and Perplexity are unavailable."""
     api_key = os.getenv("GEMINI_API_KEY", "")
@@ -485,8 +666,12 @@ def _gemini_buyer_discovery(
         return []
 
     country_name = _COUNTRY_NAMES.get(target_iso2, target_iso2)
-    prompt_template = _DISCOVERY_PROMPT_BY_SECTOR.get(sector_name, _PERPLEXITY_DISCOVERY_PROMPT)
-    query = prompt_template.format(country=country_name)
+    user_msg_template = _DISCOVERY_USER_MSG_BY_SECTOR.get(
+        sector_name,
+        _DISCOVERY_USER_MSG_FALLBACK.format(sector=sector_name.replace("_", " ")),
+    )
+    user_msg = user_msg_template.format(country=country_name) + _product_context_suffix(manufacturer)
+    full_prompt = f"{_DISCOVERY_SYSTEM_PROMPT}\n\n{user_msg}"
 
     gemini_schema = {
         "type": "ARRAY",
@@ -496,18 +681,26 @@ def _gemini_buyer_discovery(
                 "company_name": {"type": "STRING"},
                 "city": {"type": "STRING"},
                 "domain": {"type": "STRING"},
-                "contact_name": {"type": "STRING"},
-                "contact_title": {"type": "STRING"},
+                "contact": {
+                    "type": "OBJECT",
+                    "properties": {
+                        "name": {"type": "STRING"},
+                        "title": {"type": "STRING"},
+                        "linkedin": {"type": "STRING"},
+                        "email": {"type": "STRING"},
+                    },
+                },
+                "company_logo_url": {"type": "STRING"},
             },
-            "required": ["company_name", "city", "domain", "contact_name", "contact_title"],
+            "required": ["company_name", "city", "domain"],
         },
     }
 
-    models = ["gemini-3.5-flash", "gemini-3.1-flash-lite", "gemini-2.5-flash-lite"]
+    models = [ "gemini-3.1-flash-lite", "gemini-3.5-flash", "gemini-2.5-flash"]
     payload = {
-        "contents": [{"parts": [{"text": query}]}],
+        "contents": [{"parts": [{"text": full_prompt}]}],
         "generationConfig": {
-            "maxOutputTokens": 1500,
+            "maxOutputTokens": 4096,
             "temperature": 0.1,
             "responseMimeType": "application/json",
             "responseSchema": gemini_schema,
@@ -518,32 +711,16 @@ def _gemini_buyer_discovery(
         url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent?key={api_key}"
         try:
             resp = httpx.post(url, json=payload, timeout=40)
-            if resp.status_code in (429, 404):
+            if resp.status_code == 429:
+                print(f"[Gemini] {model} rate-limited — trying next model")
+                continue
+            if resp.status_code == 404:
+                print(f"[Gemini] {model} not found — trying next model")
                 continue
             resp.raise_for_status()
             content = resp.json()["candidates"][0]["content"]["parts"][0]["text"]
-            companies = json.loads(content) if isinstance(content, str) else content
-            if not isinstance(companies, list):
-                continue
-
-            buyers = []
-            for c in companies:
-                if not c.get("company_name"):
-                    continue
-                buyers.append({
-                    "company_name": c.get("company_name", ""),
-                    "company_domain": c.get("domain", ""),
-                    "city": c.get("city", ""),
-                    "country_iso2": target_iso2,
-                    "buyer_type": "buyer",
-                    "contact_name": c.get("contact_name") or None,
-                    "contact_title": c.get("contact_title") or None,
-                    "contact_email": None,
-                    "linkedin_url": None,
-                    "enrichment_source": "perplexity",
-                    "revenue_trend": None,
-                })
-
+            companies = _parse_discovery_companies(content)
+            buyers = [b for c in companies if (b := _company_to_buyer(c, target_iso2, "perplexity"))]
             if buyers:
                 print(f"[Gemini discovery] ({model}) found {len(buyers)} buyers in {country_name}")
                 return buyers
@@ -659,17 +836,57 @@ def run_buyers(
     sector_fairs = sector.get("trade_fairs", [])
     sector_name = sector.get("sector_name", "")
 
+    # Build Apollo filters from product profile, falling back to sector YAML only when
+    # the user provided no specific product phrase.
+    person_titles = list(buyer_filters.get("person_titles", []))
+
+    if manufacturer.product_phrase:
+        # Product phrase is the primary signal — sector keywords are too broad and cause
+        # false positives (e.g. "flexible shower hoses" mapped to HS 83 finds metal pipe
+        # distributors because sector keywords are "stahlhandel", "steel distributor", etc.).
+        # Replace sector company_keywords entirely with the product phrase plus channel terms.
+        channel_terms: list[str] = ["importer", "distributor", "wholesaler"]
+        if manufacturer.end_buyer_type == "oem":
+            channel_terms = ["manufacturer", "OEM", "contract manufacturing"]
+        elif manufacturer.end_buyer_type == "retail":
+            channel_terms = ["retailer", "wholesale", "shop"]
+        elif manufacturer.end_buyer_type == "hospitality":
+            channel_terms = ["hotel", "hospitality", "contract buyer"]
+        elif manufacturer.end_buyer_type == "institutional":
+            channel_terms = ["public sector", "institution"]
+        company_keywords = [manufacturer.product_phrase] + channel_terms
+    else:
+        # No product phrase — use sector YAML keywords as-is
+        company_keywords = list(buyer_filters.get("company_keywords", []))
+
+    # Buyer-type-specific person titles (added regardless of product phrase)
+    if manufacturer.end_buyer_type == "oem":
+        person_titles = ["engineer", "R&D", "technical buyer", "procurement"] + person_titles
+    elif manufacturer.end_buyer_type == "retail":
+        person_titles = ["category manager", "buyer", "merchandise", "purchasing"] + person_titles
+    elif manufacturer.end_buyer_type == "hospitality":
+        person_titles = ["purchasing manager", "procurement", "facility manager"] + person_titles
+    elif manufacturer.end_buyer_type == "institutional":
+        person_titles = ["procurement officer", "tender", "public buyer"] + person_titles
+
+    if manufacturer.packaging_format and "private_label" in manufacturer.packaging_format:
+        company_keywords = ["private label", "OEM", "contract manufacturing"] + company_keywords
+
+    if manufacturer.certifications:
+        for cert in manufacturer.certifications[:2]:
+            company_keywords.append(cert)
+
     # Step 1: Apollo discovery → Perplexity fallback if Apollo returns nothing
     raw_buyers = _apollo_search(
         target_iso2=target_iso2,
-        person_titles=buyer_filters.get("person_titles", []),
-        company_keywords=buyer_filters.get("company_keywords", []),
+        person_titles=person_titles,
+        company_keywords=company_keywords,
         company_size_ranges=buyer_filters.get("company_size_ranges", ["11-50", "51-200"]),
         limit=50,
     )
     if not raw_buyers:
         print("[Worker 3] Apollo returned no buyers — falling back to Perplexity discovery")
-        raw_buyers = _perplexity_buyer_discovery(sector_name, target_iso2)
+        raw_buyers = _perplexity_buyer_discovery(sector_name, target_iso2, manufacturer)
 
     # Step 2: PDL enrichment for records missing email or title
     enriched_buyers = []

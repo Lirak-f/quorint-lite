@@ -1,5 +1,5 @@
 sector_name: metals_steel
-hs_chapters: ["72", "73"]
+hs_chapters: ["72", "73", "74", "75", "76", "77", "78", "79", "80", "81", "82", "83"]
 
 # Google Shopping queries per target country language
 price_queries:
@@ -93,20 +93,21 @@ buyer_filters:
     - "materials manager"
     - "metals trader"
   company_keywords:
-    - "stahl"
-    - "metall"
-    - "steel"
-    - "metal"
-    - "acciaio"
-    - "acier"
-    - "wholesale"
-    - "distributor"
-    - "service centre"
     - "stahlhandel"
     - "metallhandel"
-    - "ferrous"
-    - "iron"
-    - "fabrication"
+    - "steel distributor"
+    - "metal wholesaler"
+    - "steel service centre"
+    - "Stahlgroßhandel"
+    - "négoce acier"
+    - "distributore acciaio"
+    - "metal importer"
+    - "Metallgroßhandel"
+    - "wholesale metals"
+    - "non-ferrous"
+    - "Buntmetall"
+    - "tool steel distributor"
+    - "acciaio ingrosso"
   company_size_ranges: ["11-50", "51-200", "201-500", "501-1000"]
 
 trade_fairs:

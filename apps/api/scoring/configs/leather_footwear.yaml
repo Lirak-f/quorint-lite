@@ -1,0 +1,151 @@
+sector_name: leather_footwear
+hs_chapters: ["41", "42", "43", "64", "65", "66", "67"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Schuhe Großhandel", "Lederartikel Großhandel Deutschland", "Handtaschen Großhandel"]
+  AT: ["Schuhe Großhandel Österreich", "Lederwaren Großhandel Wien"]
+  IT: ["calzature ingrosso", "pelletteria ingrosso", "borse ingrosso Italia"]
+  FR: ["chaussures en gros grossiste", "maroquinerie grossiste France", "sacs grossiste"]
+  NL: ["schoenen groothandel", "lederartikelen groothandel Nederland", "tassen groothandel"]
+  CH: ["Schuhe Grosshandel Schweiz", "Lederwaren Grosshandel"]
+
+retail_to_wholesale_ratio: 0.45
+typical_retailer_margin: 0.55
+
+compliance_checks:
+  - id: reach_azo_dyes
+    name: REACH Restriction on Azo Dyes & SVHC in Leather Articles
+    type: mandatory
+    critical: true
+    cost_low_eur: 500
+    cost_high_eur: 2000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 6
+    providers:
+      - "Eurofins Chemical Testing"
+      - "SGS Consumer Testing Services"
+      - "Intertek"
+    note: "EU REACH Regulation Annex XVII, Entry 43 — certain azo dyes that can release carcinogenic aromatic amines are restricted in leather articles (including footwear uppers, clothing, accessories). Test report confirming absence of restricted azo dyes (EN ISO 17234-1) required. Also check SVHC candidate list substances in leather: chromium VI (EN ISO 17075), pentachlorophenol (PCP). Lab test cost per material type."
+
+  - id: footwear_labelling
+    name: EU Footwear Labelling Directive (94/11/EC)
+    type: mandatory
+    critical: false
+    cost_low_eur: 200
+    cost_high_eur: 800
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 4
+    providers:
+      - "Label printer with EU standard pictograms"
+      - "Regulatory compliance consultant"
+    note: "EU Directive 94/11/EC — all footwear sold in EU must be labelled with pictograms indicating the material composition of: upper, lining/sock, and outsole. Four material categories: leather, coated leather, textile, other. Labels must be affixed to each pair (on one shoe). No specific test required — manufacturer self-declaration. Pictogram set is standardised. Must appear on the product itself, not just packaging."
+
+  - id: cites_exotic_leather
+    name: CITES Permit — Exotic Skins & Fur (HS 41, 43)
+    type: mandatory
+    critical: false
+    cost_low_eur: 300
+    cost_high_eur: 1500
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "National CITES Management Authority in exporting country"
+      - "EU CITES import permit: national wildlife authority"
+    note: "Washington Convention (CITES) — applies to exotic leather (crocodile, python, ostrich, stingray — HS 41) and fur products (HS 43) from protected species. Appendix I species (CITES highest protection) are prohibited for commercial trade. Appendix II species require export and import permits. Common materials like bovine leather, sheepskin, pigskin are NOT CITES-controlled. Always verify species before sourcing."
+
+  - id: real_fur_labelling
+    name: EU Real Fur Labelling — Regulation EU 1007/2011
+    type: mandatory
+    critical: false
+    cost_low_eur: 200
+    cost_high_eur: 600
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 3
+    providers:
+      - "Label supplier"
+    note: "EU Regulation 1007/2011 (Textile Labelling) Article 12a — products containing real animal fur must be labelled 'Contains real fur'. Applies to all textile and leather articles with incorporated fur trim. Fur species may be required on label in certain EU markets. Faux-fur products labelled as real fur or vice versa is an infringement subject to market surveillance action."
+
+  - id: reach_pcp_restriction
+    name: REACH Restriction on Pentachlorophenol (PCP) in Leather
+    type: mandatory
+    critical: false
+    cost_low_eur: 300
+    cost_high_eur: 1000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 4
+    providers:
+      - "Eurofins Leather Testing"
+      - "SGS Consumer Testing"
+    note: "EU REACH Regulation Annex XVII, Entry 22 — pentachlorophenol (PCP), used as leather preservative, is restricted to <5 mg/kg in leather articles. Test method EN 1010 or equivalent. Most modern tanneries have eliminated PCP, but traditional Balkan tanneries may still use it. Obtain test certificate per batch from accredited lab."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "fashion buyer"
+    - "shoe buyer"
+    - "accessories buyer"
+    - "import manager"
+  company_keywords:
+    - "schuhe"
+    - "calzature"
+    - "chaussures"
+    - "footwear"
+    - "leder"
+    - "pelle"
+    - "cuir"
+    - "leather"
+    - "Schuhhandel"
+    - "shoe wholesale"
+    - "boutique"
+    - "fashion wholesale"
+    - "bag importer"
+    - "Handtaschen"
+    - "borse"
+    - "maroquinerie"
+    - "sports shoes"
+  company_size_ranges: ["11-50", "51-200", "201-500"]
+
+trade_fairs:
+  - name: "GDS Düsseldorf"
+    country: DE
+    city: Düsseldorf
+    month: 3
+    url: "https://www.gds-online.com"
+  - name: "MICAM Milan"
+    country: IT
+    city: Milan
+    month: 2
+    url: "https://www.micamonline.com"
+  - name: "Lineapelle Bologna"
+    country: IT
+    city: Bologna
+    month: 2
+    url: "https://www.lineapelle-fair.it"
+  - name: "Euro Shoes Moscow / Alternative"
+    country: DE
+    city: Düsseldorf
+    month: 9
+  - name: "Mipel Milan (Leather Goods)"
+    country: IT
+    city: Milan
+    month: 9
+    url: "https://www.mipel.com"
+
+typical_first_order_units: 2000
+typical_compliance_cost_eur: 5000
+sample_shipping_cost_eur: 600
+
+competitor_query_template: >
+  Who are the top 3-5 footwear and leather goods exporters currently supplying
+  {target_country} shoe retailers, fashion wholesalers, and department stores in 2025?
+  Focus on suppliers from Balkans (Kosovo, Albania, Bosnia), Eastern Europe (Romania, Bulgaria),
+  Turkey, and Portugal.
+  For each: product category, country of origin, approximate wholesale price per pair or unit,
+  certifications held, and key buyers they supply.
+  Cite sources.

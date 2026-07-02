@@ -1,0 +1,151 @@
+sector_name: live_animals_meat
+hs_chapters: ["01", "02", "03", "04", "05"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Fleisch Großhandel", "Rindfleisch Großhandel Deutschland", "Fisch Großhandel Tiefkühl"]
+  AT: ["Fleisch Großhandel Österreich", "Fischfilet Großhandel Wien"]
+  IT: ["carne all'ingrosso", "pesce congelato ingrosso", "formaggi ingrosso"]
+  FR: ["viande en gros grossiste", "poisson grossiste France", "produits laitiers grossiste"]
+  NL: ["vlees groothandel", "vis groothandel Nederland", "zuivel groothandel"]
+  CH: ["Fleisch Grosshandel Schweiz", "Fisch Grosshandel"]
+
+retail_to_wholesale_ratio: 0.55
+typical_retailer_margin: 0.45
+
+compliance_checks:
+  - id: veterinary_health_certificate
+    name: Veterinary Health Certificate (EU Official Controls Regulation)
+    type: mandatory
+    critical: true
+    cost_low_eur: 300
+    cost_high_eur: 1200
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 3
+    providers:
+      - "National veterinary authority in country of origin"
+      - "EU-approved veterinary inspector"
+    note: "EU Regulation 2017/625 — all consignments of animal products require a veterinary health certificate issued by the competent authority of the exporting country. Must accompany the shipment and be pre-notified via TRACES NT. WB6 countries must be on the EU approved third-country list for each product category."
+
+  - id: traces_nt_registration
+    name: TRACES NT Pre-Notification (SPS Border Check)
+    type: mandatory
+    critical: true
+    cost_low_eur: 100
+    cost_high_eur: 400
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 2
+    providers:
+      - "EU importer registers in TRACES NT: traces.ec.europa.eu"
+      - "EU customs agent"
+    note: "EU Regulation 2019/1715 — all shipments of live animals and animal products must be pre-notified via TRACES NT before arrival at an EU Border Inspection Post (BIP). The EU importer submits the Common Health Entry Document (CHED). Failure to pre-notify results in detention at the border."
+
+  - id: haccp_certification
+    name: HACCP Food Safety Management System
+    type: mandatory
+    critical: true
+    cost_low_eur: 1500
+    cost_high_eur: 5000
+    lead_time_weeks_min: 8
+    lead_time_weeks_max: 20
+    providers:
+      - "Bureau Veritas Food Safety"
+      - "SGS Food Safety"
+      - "Local accredited certification body"
+    note: "EU Regulation 852/2004 — all food business operators must implement HACCP principles. EU buyers will not accept suppliers without a documented HACCP plan. Combine with ISO 22000 or FSSC 22000 for stronger market access."
+
+  - id: eu_food_business_operator
+    name: EU Food Business Operator (FBO) Registration / Approval
+    type: mandatory
+    critical: true
+    cost_low_eur: 500
+    cost_high_eur: 2000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 16
+    providers:
+      - "National competent authority (food safety agency) in exporting country"
+      - "EU DG SANTE approved establishment list"
+    note: "EU Regulation 853/2004 — slaughterhouses, cutting plants, cold stores, and fish processing facilities must be approved and listed on the EU's approved establishments list (accessible via ec.europa.eu/food/safety/official_controls). Only approved establishments may export animal products to the EU."
+
+  - id: cites_permit
+    name: CITES Export/Import Permit (Live Animals & Wildlife Products)
+    type: mandatory
+    critical: false
+    cost_low_eur: 200
+    cost_high_eur: 800
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "National CITES Management Authority in country of origin"
+      - "EU import permit: national wildlife authority of destination country"
+    note: "Washington Convention (CITES) — required for live animals (HS 01), certain fish species (HS 03), and animal by-products from protected species (HS 05). Appendix I species are virtually prohibited for commercial trade; Appendix II require permits. Check CITES trade database (trade.cites.org) for your exact species."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "supply chain"
+    - "category manager"
+    - "import manager"
+  company_keywords:
+    - "fleisch"
+    - "meat"
+    - "viande"
+    - "carne"
+    - "fish"
+    - "fisch"
+    - "poisson"
+    - "pesce"
+    - "food distributor"
+    - "lebensmittelgroßhandel"
+    - "wholesale food"
+    - "slaughterhouse"
+    - "protein"
+    - "cold store"
+    - "dairy"
+    - "molkerei"
+    - "latteria"
+  company_size_ranges: ["11-50", "51-200", "201-500"]
+
+trade_fairs:
+  - name: "Anuga Cologne"
+    country: DE
+    city: Cologne
+    month: 10
+    url: "https://www.anuga.com"
+  - name: "SIAL Paris"
+    country: FR
+    city: Paris
+    month: 10
+    url: "https://www.sialparis.com"
+  - name: "IFFA Frankfurt"
+    country: DE
+    city: Frankfurt
+    month: 5
+    url: "https://www.iffa.com"
+  - name: "Tuttofood Milan"
+    country: IT
+    city: Milan
+    month: 5
+    url: "https://www.tuttofood.it"
+  - name: "Seafood Expo Global Brussels"
+    country: BE
+    city: Brussels
+    month: 4
+    url: "https://www.seafoodexpo.com"
+
+typical_first_order_units: 5000
+typical_compliance_cost_eur: 6000
+sample_shipping_cost_eur: 1200
+
+competitor_query_template: >
+  Who are the top 3-5 meat, fish, and animal product exporters currently supplying
+  {target_country} wholesale food distributors and retail chains in 2025?
+  Focus on suppliers from Balkans (Kosovo, Albania, Serbia, Bosnia), Eastern Europe, and Turkey.
+  For each: product category, country of origin, approximate wholesale price per kg,
+  EU certifications held (HACCP, FBO approval number), and which buyers they supply.
+  Cite sources.

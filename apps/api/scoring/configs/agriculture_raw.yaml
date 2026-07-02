@@ -1,0 +1,143 @@
+sector_name: agriculture_raw
+hs_chapters: ["06", "10", "11", "12", "13", "14", "23"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Getreide Großhandel", "Blumen Großhandel Deutschland", "Futtermittel Großhandel"]
+  AT: ["Getreide Großhandel Österreich", "Tierfutter Großhandel Wien"]
+  IT: ["cereali ingrosso", "mangimi ingrosso Italia", "piante ingrosso"]
+  FR: ["céréales grossiste", "alimentation animale grossiste", "fleurs grossiste"]
+  NL: ["graan groothandel", "veevoer groothandel Nederland", "bloemen groothandel"]
+  CH: ["Getreide Grosshandel Schweiz", "Futtermittel Grosshandel"]
+
+retail_to_wholesale_ratio: 0.60
+typical_retailer_margin: 0.40
+
+compliance_checks:
+  - id: phytosanitary_certificate
+    name: Phytosanitary Certificate (IPPC / EU Plant Health Regulation)
+    type: mandatory
+    critical: true
+    cost_low_eur: 150
+    cost_high_eur: 600
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 3
+    providers:
+      - "National Plant Protection Organisation (NPPO) in country of origin"
+      - "Ministry of Agriculture phytosanitary inspectorate"
+    note: "EU Regulation 2016/2031 — all plant products (cereals, seeds, cut flowers, plant material) require a phytosanitary certificate from the national NPPO. Must accompany every shipment. Pre-notification required via iMPORTal (EU entry management system). WB6 countries under SAA must comply with EU plant health rules."
+
+  - id: mrl_compliance
+    name: EU Maximum Residue Levels (MRL) — Pesticides & Contaminants
+    type: mandatory
+    critical: true
+    cost_low_eur: 500
+    cost_high_eur: 2000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 6
+    providers:
+      - "Accredited laboratory (ISO 17025): SGS, Eurofins, Intertek"
+      - "National food safety laboratory"
+    note: "EU Regulation 396/2005 — sets maximum residue levels for pesticides in food and feed. Samples must be tested by an EU-accredited laboratory before shipment. RASFF (Rapid Alert System for Food and Feed) rejections for MRL violations are common. Obtain test certificates per batch, particularly for cereals (aflatoxin), oil seeds, and dried fruits."
+
+  - id: eu_organic_certification
+    name: EU Organic Certification (Council Regulation EC 834/2007 / EU 2018/848)
+    type: recommended
+    critical: false
+    cost_low_eur: 2000
+    cost_high_eur: 6000
+    lead_time_weeks_min: 12
+    lead_time_weeks_max: 52
+    providers:
+      - "Ecocert: ecocert.com"
+      - "Bureau Veritas Certification"
+      - "KIWA BCS Öko-Garantie GmbH"
+    note: "EU Regulation 2018/848 — organic produce commands 20-50% price premium in EU markets. Certification requires a 2-year conversion period plus annual audits. Balkans producers with access to uncertified organic land have significant competitive advantage. Highly recommended for cereals, oil seeds, and herbal materials."
+
+  - id: animal_feed_registration
+    name: EU Feed Business Operator Registration (HS 23 — Animal Feed)
+    type: mandatory
+    critical: true
+    cost_low_eur: 300
+    cost_high_eur: 1000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "National competent authority in exporting country"
+      - "EU feed establishment list: ec.europa.eu"
+    note: "EU Regulation 183/2005 — feed business operators producing or exporting compound feed, feed ingredients, or additives to the EU must be registered/approved in their national competent authority and listed on the EU approved feed establishments list. Applies to HS chapter 23 (animal feed, oil-cake, bran). Non-listed establishments cannot export feed to EU."
+
+  - id: traces_plant_health
+    name: TRACES Plant Health Pre-Notification
+    type: mandatory
+    critical: false
+    cost_low_eur: 100
+    cost_high_eur: 300
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 1
+    providers:
+      - "EU importer registers via iMPORTal: importal.ec.europa.eu"
+    note: "EU Regulation 2017/625 — plant products regulated under plant health rules require pre-notification before arrival at EU point of entry. The EU importer submits a Common Health Entry Document (CHED-PP) via iMPORTal at least 1 working day before arrival. Cut flowers require 4-hour pre-notification."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "commodity trader"
+    - "grain trader"
+    - "agri buyer"
+  company_keywords:
+    - "Getreidehandel"
+    - "grain trader"
+    - "grain importer"
+    - "Getreidehändler"
+    - "céréales négoce"
+    - "cereali ingrosso"
+    - "agricultural commodity trader"
+    - "Agrarimport"
+    - "agri importer"
+    - "Futtermittelhandel"
+    - "animal feed wholesaler"
+    - "flower wholesale"
+    - "Blumengroßhandel"
+    - "seed wholesaler"
+    - "Saatguthandel"
+  company_size_ranges: ["11-50", "51-200", "201-500"]
+
+trade_fairs:
+  - name: "Agra Plovdiv"
+    country: BG
+    city: Plovdiv
+    month: 9
+    url: "https://www.fair.bg"
+  - name: "BioFach Nuremberg"
+    country: DE
+    city: Nuremberg
+    month: 1
+    url: "https://www.biofach.de"
+  - name: "Eurotier Hannover"
+    country: DE
+    city: Hannover
+    month: 11
+    url: "https://www.eurotier.com"
+  - name: "SIAL Paris"
+    country: FR
+    city: Paris
+    month: 10
+    url: "https://www.sialparis.com"
+
+typical_first_order_units: 20000
+typical_compliance_cost_eur: 3000
+sample_shipping_cost_eur: 900
+
+competitor_query_template: >
+  Who are the top 3-5 agricultural raw material exporters (cereals, oil seeds, animal feed,
+  cut flowers) currently supplying {target_country} importers and processors in 2025?
+  Focus on suppliers from Balkans, Eastern Europe, Ukraine, and Moldova.
+  For each: product, country of origin, approximate price per tonne,
+  certifications held (organic, phytosanitary), and buyers they supply.
+  Cite sources.

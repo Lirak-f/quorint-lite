@@ -1,0 +1,156 @@
+sector_name: instruments_optical
+hs_chapters: ["90", "91", "92"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Medizintechnik Großhandel", "optische Instrumente Großhandel", "Messgeräte Großhandel"]
+  AT: ["Medizinprodukte Großhandel Österreich", "Labortechnik Großhandel Wien"]
+  IT: ["dispositivi medici ingrosso", "strumenti ottici ingrosso", "strumenti di misura ingrosso"]
+  FR: ["dispositifs médicaux grossiste", "instruments optiques grossiste", "appareils de mesure grossiste"]
+  NL: ["medische apparatuur groothandel", "optische instrumenten groothandel Nederland"]
+  CH: ["Medizinprodukte Grosshandel Schweiz", "Präzisionsinstrumente Grosshandel"]
+
+retail_to_wholesale_ratio: 0.55
+typical_retailer_margin: 0.45
+
+compliance_checks:
+  - id: eu_mdr_medical_devices
+    name: EU Medical Device Regulation (MDR) — EU 2017/745 (HS 90 Medical)
+    type: mandatory
+    critical: true
+    cost_low_eur: 10000
+    cost_high_eur: 100000
+    lead_time_weeks_min: 26
+    lead_time_weeks_max: 156
+    providers:
+      - "Notified Body (NoBo): TÜV SÜD, BSI, SGS, Dekra"
+      - "EU Authorised Representative required for non-EU manufacturers"
+      - "EUDAMED registration: ec.europa.eu/tools/eudamed"
+    note: "EU MDR 2017/745 (fully applicable May 2021) — all medical devices sold in EU require: risk classification (Class I-III), technical documentation, clinical evidence, notified body assessment (Class IIa+), CE marking, EU Authorised Representative, and EUDAMED registration. Class II and III require notified body involvement (significant cost). Timelines have extended significantly due to notified body bottleneck. WB6 manufacturers must appoint an EU AR before any EU market activity."
+
+  - id: eu_ivdr
+    name: EU In Vitro Diagnostic Regulation (IVDR) — EU 2017/746
+    type: mandatory
+    critical: false
+    cost_low_eur: 8000
+    cost_high_eur: 80000
+    lead_time_weeks_min: 26
+    lead_time_weeks_max: 156
+    providers:
+      - "Notified Body: TÜV Rheinland, Dekra, Element"
+      - "EU Authorised Representative"
+    note: "EU IVDR 2017/746 — in vitro diagnostic devices (blood tests, urinalysis, point-of-care devices, lab instruments) require CE marking under IVDR (stricter than predecessor IVDD). Classification: Class A-D, with Class C/D requiring notified body involvement. Transition period extends to May 2026-2027 depending on device class. Significant compliance costs for new market entrants."
+
+  - id: measuring_instruments_directive
+    name: EU Measuring Instruments Directive (MID) — 2014/32/EU
+    type: mandatory
+    critical: false
+    cost_low_eur: 2000
+    cost_high_eur: 12000
+    lead_time_weeks_min: 8
+    lead_time_weeks_max: 24
+    providers:
+      - "National metrology institute (e.g., PTB Germany, METAS Switzerland)"
+      - "Notified body per relevant MI annexes"
+    note: "EU Directive 2014/32/EU — measuring instruments used in commercial transactions (water meters, gas meters, electricity meters, weighing instruments, taximeters, material measures, dimensional measuring systems) require type approval and CE marking under MID. 10 instrument categories covered in annexes. National legal metrology verification also required at point of use in some countries."
+
+  - id: rohs_weee_instruments
+    name: RoHS (2011/65/EU) + WEEE (2012/19/EU) — Electronic Instruments
+    type: mandatory
+    critical: false
+    cost_low_eur: 500
+    cost_high_eur: 2500
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 8
+    providers:
+      - "Eurofins E&E Testing"
+      - "Intertek RoHS/WEEE"
+      - "Bureau Veritas"
+    note: "EU RoHS 2 Directive 2011/65/EU — all electronic measuring instruments, optical equipment with electronic components, and clocks with electronic displays must comply with RoHS substance restrictions (10 restricted substances). WEEE Directive 2012/19/EU requires producer registration in each EU country for WEEE take-back compliance. Annual WEEE tonnage reporting required. Use EU WEEE compliance scheme (e.g., ERP, Landbell)."
+
+  - id: ce_machinery_directive
+    name: CE Marking — Machinery Directive (2006/42/EC) — Laboratory & Industrial Instruments
+    type: mandatory
+    critical: false
+    cost_low_eur: 2000
+    cost_high_eur: 10000
+    lead_time_weeks_min: 6
+    lead_time_weeks_max: 16
+    providers:
+      - "Notified body or self-certification depending on category"
+      - "Machinery safety consultant"
+    note: "EU Machinery Directive 2006/42/EC — laboratory instruments with moving parts (centrifuges, automated analytical systems, CNC optics fabrication equipment) may fall under the Machinery Directive and require CE marking. Essential Health and Safety Requirements (EHSRs) must be met. Technical file and Declaration of Conformity required. New EU Machinery Regulation (EU 2023/1230) applies from Jan 2027."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "medical device buyer"
+    - "lab equipment buyer"
+    - "technical buyer"
+    - "category manager"
+  company_keywords:
+    - "medizintechnik"
+    - "dispositivi medici"
+    - "médical"
+    - "medical devices"
+    - "Labortechnik"
+    - "laboratory equipment"
+    - "attrezzature laboratorio"
+    - "optik"
+    - "ottica"
+    - "optique"
+    - "optics"
+    - "Messgeräte"
+    - "measuring instruments"
+    - "precision"
+    - "Präzision"
+    - "Uhren"
+    - "watches"
+    - "orologi"
+    - "horlogerie"
+  company_size_ranges: ["11-50", "51-200", "201-500"]
+
+trade_fairs:
+  - name: "Medica Düsseldorf"
+    country: DE
+    city: Düsseldorf
+    month: 11
+    url: "https://www.medica.de"
+  - name: "COMPAMED Düsseldorf"
+    country: DE
+    city: Düsseldorf
+    month: 11
+    url: "https://www.compamed.de"
+  - name: "Laser World of Photonics Munich"
+    country: DE
+    city: Munich
+    month: 6
+    url: "https://www.world-of-photonics.com"
+  - name: "EPHJ Geneva (Watchmaking & Precision)"
+    country: CH
+    city: Geneva
+    month: 6
+    url: "https://www.ephj.ch"
+  - name: "Analytica Munich (Lab Instruments)"
+    country: DE
+    city: Munich
+    month: 4
+    url: "https://www.analytica.de"
+
+typical_first_order_units: 200
+typical_compliance_cost_eur: 18000
+sample_shipping_cost_eur: 400
+
+competitor_query_template: >
+  Who are the top 3-5 optical instrument, medical device, and precision measurement equipment
+  exporters currently supplying {target_country} hospitals, laboratories, distributors, and
+  retailers in 2025?
+  Focus on suppliers from Balkans, Eastern Europe (Czech Republic, Poland), Germany, and Switzerland.
+  For each: product category, country of origin, approximate price range,
+  certifications held (CE MDR/IVDR/MID, ISO 13485, RoHS), and key EU customers.
+  Cite sources.

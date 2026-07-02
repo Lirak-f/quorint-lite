@@ -1,0 +1,149 @@
+sector_name: transport_other
+hs_chapters: ["86", "88", "89"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Bahnkomponenten Großhandel", "Schiffsteile Großhandel Deutschland", "Luftfahrtteile Großhandel"]
+  AT: ["Schienenfahrzeugteile Großhandel Österreich", "Schiffbauteile Großhandel"]
+  IT: ["componenti ferroviari ingrosso", "parti navali ingrosso Italia", "componenti aeronautici ingrosso"]
+  FR: ["composants ferroviaires grossiste", "équipements navals grossiste", "pièces aéronautiques grossiste"]
+  NL: ["railcomponenten groothandel", "scheepvaartonderdelen groothandel Nederland"]
+  CH: ["Bahnkomponenten Grosshandel Schweiz", "Schiffsteile Grosshandel"]
+
+retail_to_wholesale_ratio: 0.80
+typical_retailer_margin: 0.20
+
+compliance_checks:
+  - id: railway_interoperability
+    name: EU Railway Interoperability Directive (EU 2016/797) — HS 86
+    type: mandatory
+    critical: true
+    cost_low_eur: 10000
+    cost_high_eur: 80000
+    lead_time_weeks_min: 26
+    lead_time_weeks_max: 104
+    providers:
+      - "Notified Body (NoBo): TÜV Rheinland Rail, Bureau Veritas Rail"
+      - "Designated Body (DeBo) per TSI"
+      - "ERA (European Union Agency for Railways): era.europa.eu"
+    note: "EU Directive 2016/797 (recast Railway Interoperability Directive) — railway subsystems and interoperability constituents (wheels, axles, brakes, couplings, bogies, signalling) must conform to Technical Specifications for Interoperability (TSIs). EC declaration of conformity or verification required. Notified Body assessment mandatory for safety-critical components. EASA analogue for rail. Significant cost and time investment."
+
+  - id: easa_type_certificate
+    name: EASA Type Certificate / Part Approval (EU 2018/1139) — HS 88
+    type: mandatory
+    critical: true
+    cost_low_eur: 20000
+    cost_high_eur: 200000
+    lead_time_weeks_min: 52
+    lead_time_weeks_max: 260
+    providers:
+      - "EASA (European Union Aviation Safety Agency): easa.europa.eu"
+      - "National Aviation Authority (NAA) in destination country"
+      - "EASA-approved Design Organisation Approval (DOA) holder"
+    note: "EU Regulation 2018/1139 — aircraft (HS 8802), aircraft parts, and airborne equipment placed on the EU market require EASA type approval or Parts Manufacturing Approval (PMA). WB6 country manufacturers must have their NAA recognised by EASA, or work through an EASA-approved Design Organisation. Bilateral Aviation Safety Agreements (BASA) do not exist between WB6 and EU. Subcontract manufacturing for EASA-approved OEMs is the primary route."
+
+  - id: imo_solas_marine
+    name: IMO / SOLAS Marine Equipment Compliance — HS 89
+    type: mandatory
+    critical: false
+    cost_low_eur: 3000
+    cost_high_eur: 20000
+    lead_time_weeks_min: 8
+    lead_time_weeks_max: 26
+    providers:
+      - "Marine Equipment Directive (EU 2014/90): national maritime authority"
+      - "Lloyd's Register, DNV, Bureau Veritas Marine"
+      - "RINA (Italian maritime classification)"
+    note: "EU Marine Equipment Directive (MED) 2014/90 — safety equipment for ships flying EU flags must bear the wheelmark (EU marine conformity mark). Applies to life-saving appliances, fire protection, navigation equipment, radio communications. IMO/SOLAS conventions apply internationally. For shipbuilding components (structural steel, engines, fittings), classification society approval (DNV, Lloyd's Register, Bureau Veritas) required."
+
+  - id: ce_marking_rail_components
+    name: CE Marking for Railway Sub-Components
+    type: mandatory
+    critical: false
+    cost_low_eur: 2000
+    cost_high_eur: 10000
+    lead_time_weeks_min: 6
+    lead_time_weeks_max: 20
+    providers:
+      - "Notified body per applicable EN standard"
+      - "TÜV Austria, TÜV Rheinland"
+    note: "Railway components not covered by TSIs but falling under other EU directives (Low Voltage Directive, Machinery Directive, EMC Directive) still require CE marking. Examples: electric motors for railway applications (LVD + EMC), on-board computer equipment (RED), pneumatic systems (Pressure Equipment Directive). CE marking documentation and Declaration of Conformity required."
+
+  - id: iso_9001_transport
+    name: ISO 9001:2015 / AS9100 Quality Management — Transport Equipment
+    type: commercial_expected
+    critical: false
+    cost_low_eur: 5000
+    cost_high_eur: 15000
+    lead_time_weeks_min: 16
+    lead_time_weeks_max: 36
+    providers:
+      - "Bureau Veritas"
+      - "SGS"
+      - "TÜV Rheinland"
+    note: "ISO 9001 is baseline for railway and marine component suppliers. AS9100 (aerospace quality standard) is required for aviation subcontractors. IRIS certification (International Railway Industry Standard, EN 9100 family) is required by major railway OEMs (Siemens, Alstom, Bombardier/Alstom). IRIS certification takes 18-24 months. ISO 3834 (welding quality) required for structural rail components."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "supply chain"
+    - "technical buyer"
+    - "rail procurement"
+    - "MRO buyer"
+  company_keywords:
+    - "rail component distributor"
+    - "Bahnkomponentenhandel"
+    - "railway parts importer"
+    - "rolling stock parts"
+    - "MRO distributor"
+    - "marine parts distributor"
+    - "Schiffsteilehandel"
+    - "ship equipment importer"
+    - "aviation parts distributor"
+    - "Luftfahrtteilehandel"
+    - "aerospace parts wholesaler"
+    - "transport equipment importer"
+    - "vehicle parts wholesaler"
+    - "Fahrzeugteilehandel"
+    - "composants ferroviaires"
+  company_size_ranges: ["51-200", "201-500", "501-1000"]
+
+trade_fairs:
+  - name: "InnoTrans Berlin"
+    country: DE
+    city: Berlin
+    month: 9
+    url: "https://www.innotrans.com"
+  - name: "Europort Rotterdam"
+    country: NL
+    city: Rotterdam
+    month: 11
+    url: "https://www.europort.nl"
+  - name: "Paris Air Show Le Bourget"
+    country: FR
+    city: Paris
+    month: 6
+    url: "https://www.siae.fr"
+  - name: "SMM Hamburg (Shipbuilding)"
+    country: DE
+    city: Hamburg
+    month: 9
+    url: "https://www.smm-hamburg.com"
+
+typical_first_order_units: 50
+typical_compliance_cost_eur: 30000
+sample_shipping_cost_eur: 2000
+
+competitor_query_template: >
+  Who are the top 3-5 railway component, aerospace parts, and marine equipment exporters
+  currently supplying {target_country} OEMs, rail operators, shipyards, and MRO companies
+  in 2025?
+  Focus on suppliers from Balkans, Eastern Europe (Czech Republic, Poland, Romania), and Turkey.
+  For each: product category, country of origin, approximate price range,
+  certifications held (TSI/NoBo, EASA, IMO, IRIS, ISO 9001), and key OEM customers.
+  Cite sources.

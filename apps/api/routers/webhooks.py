@@ -44,6 +44,14 @@ def _enqueue_report_job(report_id: str) -> None:
         "is_test": False,
         "certifications": row.get("certifications") or [],
         "capacity_units": row.get("capacity_units") or "<100/mo",
+        "product_name": row.get("product_name"),
+        "product_desc": row.get("product_desc"),
+        "product_phrase": row.get("product_phrase"),
+        "end_buyer_type": row.get("end_buyer_type"),
+        "price_tier": row.get("price_tier"),
+        "packaging_format": row.get("packaging_format"),
+        "material_subtype": row.get("material_subtype"),
+        "processing_level": row.get("processing_level"),
     }
 
     try:
@@ -65,6 +73,14 @@ def _enqueue_report_job(report_id: str) -> None:
                 tier=job_data["tier"],
                 certifications=job_data["certifications"],
                 capacity_units=job_data["capacity_units"],
+                product_name=job_data.get("product_name"),
+                product_desc=job_data.get("product_desc"),
+                product_phrase=job_data.get("product_phrase"),
+                end_buyer_type=job_data.get("end_buyer_type"),
+                price_tier=job_data.get("price_tier"),
+                packaging_format=job_data.get("packaging_format"),
+                material_subtype=job_data.get("material_subtype"),
+                processing_level=job_data.get("processing_level"),
             )
             run_pipeline(report_id=report_id, manufacturer=manufacturer, tier=job_data["tier"], is_test=False)
 

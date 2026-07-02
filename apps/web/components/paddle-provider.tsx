@@ -1,20 +1,23 @@
 "use client";
 
-import { useEffect } from "react";
-import { initializePaddle } from "@paddle/paddle-js";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { initializePaddle, type Paddle } from "@paddle/paddle-js";
 
-export function PaddleProvider() {
+const PaddleContext = createContext<Paddle | undefined>(undefined);
+
+export function usePaddle() {
+  return useContext(PaddleContext);
+}
+
+export function PaddleProvider({ children }: { children: ReactNode }) {
+  const [paddle, setPaddle] = useState<Paddle | undefined>(undefined);
+
   useEffect(() => {
     const token = process.env.NEXT_PUBLIC_PADDLE_CLIENT_TOKEN;
     const env = process.env.NEXT_PUBLIC_PADDLE_ENV as "sandbox" | "production" | undefined;
-
     if (!token) return;
-
-    initializePaddle({
-      environment: env ?? "sandbox",
-      token,
-    });
+    initializePaddle({ environment: env ?? "sandbox", token }).then(setPaddle);
   }, []);
 
-  return null;
+  return <PaddleContext.Provider value={paddle}>{children}</PaddleContext.Provider>;
 }

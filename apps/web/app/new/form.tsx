@@ -1,9 +1,11 @@
 "use client";
 
 import { useState } from "react";
+import { toast } from "sonner";
 import Link from "next/link";
 import { cn, COUNTRY_NAMES, ORIGIN_COUNTRIES } from "@/lib/utils";
 import { analytics } from "@/lib/analytics";
+import { usePaddle } from "@/components/paddle-provider";
 
 type Step = 1 | 2 | 3 | 4;
 type LeadCount = 10 | 20 | 30;
@@ -21,21 +23,13 @@ const LEAD_TIERS: {
   { leads: 30, tier: "full", price: 49, perLead: 1.63 },
 ];
 
-const SUPPORTED_TARGET_ISO2 = ["AT", "DE", "IT", "FR", "NL", "CH"] as const;
+const SUPPORTED_TARGET_ISO2 = ["AT", "DE", "IT", "FR", "NL", "CH", "SE"] as const;
 
 const TARGET_COUNTRIES = SUPPORTED_TARGET_ISO2.map((iso2) => ({
   iso2,
   name: COUNTRY_NAMES[iso2] ?? iso2,
 }));
 
-type CapacityUnits = "<100/mo" | "100-500/mo" | "500+/mo";
-
-function toCapacityUnits(raw: string): CapacityUnits {
-  const n = parseInt(raw.replace(/\D/g, ""), 10);
-  if (!Number.isFinite(n) || n < 100) return "<100/mo";
-  if (n < 500) return "100-500/mo";
-  return "500+/mo";
-}
 
 function parseApiError(payload: { error?: unknown; detail?: unknown }): string {
   if (typeof payload.error === "string") return payload.error;
@@ -86,24 +80,71 @@ function CountryFlag({ iso2, size = 20 }: { iso2: string; size?: number }) {
 
 const STEP_LABELS: Record<Step, string> = {
   1: "Your product",
-  2: "Target market",
-  3: "Pricing",
+  2: "Buyer profile",
+  3: "Target market",
   4: "Review & pay",
 };
+
+// ── Sector detection: HS chapter (first 2 digits) → sector name ──
+// Mirrors apps/api/scoring/config_loader.py logic, client-side for instant feedback.
+const HS_CHAPTER_TO_SECTOR: Record<string, string> = {
+  "02": "live_animals_meat", "04": "food_beverage", "07": "food_beverage",
+  "08": "food_beverage", "09": "food_beverage", "10": "food_beverage",
+  "11": "food_beverage", "15": "food_beverage", "16": "food_beverage",
+  "17": "food_beverage", "19": "food_beverage", "20": "food_beverage",
+  "21": "food_beverage", "22": "food_beverage", "24": "tobacco",
+  "25": "minerals_mining", "26": "minerals_mining", "28": "chemicals_pharma",
+  "29": "chemicals_pharma", "30": "chemicals_pharma", "31": "chemicals_pharma",
+  "32": "chemicals_pharma", "33": "chemicals_pharma", "34": "chemicals_pharma",
+  "38": "chemicals_pharma", "39": "plastics_rubber", "40": "plastics_rubber",
+  "41": "leather_footwear", "42": "leather_footwear", "43": "leather_footwear",
+  "44": "furniture_wood", "47": "paper_printing", "48": "paper_printing",
+  "49": "paper_printing", "50": "raw_textiles", "51": "raw_textiles",
+  "52": "raw_textiles", "53": "raw_textiles", "54": "raw_textiles",
+  "55": "raw_textiles", "56": "raw_textiles", "57": "raw_textiles",
+  "58": "raw_textiles", "59": "raw_textiles", "60": "raw_textiles",
+  "61": "textiles_apparel", "62": "textiles_apparel", "63": "textiles_apparel",
+  "64": "leather_footwear", "69": "stone_ceramics_glass", "70": "stone_ceramics_glass",
+  "72": "metals_steel", "73": "metals_steel", "74": "metals_steel",
+  "75": "metals_steel", "76": "metals_steel", "78": "metals_steel",
+  "79": "metals_steel", "80": "metals_steel", "81": "metals_steel",
+  "82": "metals_steel", "83": "metals_steel", "84": "machinery",
+  "85": "machinery", "86": "transport_other", "87": "transport_other",
+  "88": "transport_other", "89": "transport_other", "90": "instruments_optical",
+  "91": "instruments_optical", "92": "instruments_optical", "93": "arms_ammunition",
+  "94": "furniture_wood", "95": "toys_sports_misc", "96": "toys_sports_misc",
+  "97": "works_of_art",
+};
+
+const SECTOR_LABELS: Record<string, string> = {
+  food_beverage: "Food & Beverage", textiles_apparel: "Textiles & Apparel",
+  furniture_wood: "Furniture & Wood", metals_steel: "Metals & Steel",
+  chemicals_pharma: "Chemicals & Pharma", plastics_rubber: "Plastics & Rubber",
+  leather_footwear: "Leather & Footwear", machinery: "Machinery & Equipment",
+  raw_textiles: "Raw Textiles", paper_printing: "Paper & Printing",
+  stone_ceramics_glass: "Stone, Ceramics & Glass", minerals_mining: "Minerals & Mining",
+  instruments_optical: "Instruments & Optical", transport_other: "Transport Equipment",
+  tobacco: "Tobacco", arms_ammunition: "Arms & Ammunition",
+  toys_sports_misc: "Toys, Sports & Misc", works_of_art: "Works of Art",
+  live_animals_meat: "Live Animals & Meat",
+};
+
 
 interface FormData {
   productName: string;
   productDesc: string;
   hsCode: string;
-  capacityUnits: string;
+  unitCostEur: string;
   targetIso2: string;
   leads: LeadCount;
   tier: ReportTier;
   price: number;
-  unitCostEur: string;
-  moq: string;
-  leadTimeDays: string;
   originIso2: string;
+  // Step 2 — Buyer profile
+  productPhrase: string;
+  endBuyerType: string;
+  packagingFormat: string[];
+  profileConfirmed: boolean;
 }
 
 export function NewReportForm() {
@@ -113,17 +154,20 @@ export function NewReportForm() {
     productName: "",
     productDesc: "",
     hsCode: "",
-    capacityUnits: "",
+    unitCostEur: "",
     targetIso2: "DE",
     leads: 20,
     tier: "full",
     price: 49,
-    unitCostEur: "",
-    moq: "",
-    leadTimeDays: "",
     originIso2: "XK",
+    // Step 2 — Buyer profile
+    productPhrase: "",
+    endBuyerType: "",
+    packagingFormat: [],
+    profileConfirmed: false,
   });
   const [submitting, setSubmitting] = useState(false);
+  const paddle = usePaddle();
 
   function goTo(target: Step, dir: "forward" | "back") {
     setDirection(dir);
@@ -135,52 +179,55 @@ export function NewReportForm() {
   function back() { goTo((step - 1) as Step, "back"); }
 
   function canStep1() {
-    return data.productName.trim().length >= 2 && /^\d{4,6}$/.test(data.hsCode.trim());
+    const cost = Number(data.unitCostEur);
+    return (
+      data.productName.trim().length >= 2 &&
+      /^\d{4,6}$/.test(data.hsCode.trim()) &&
+      data.unitCostEur.trim().length > 0 &&
+      Number.isFinite(cost) &&
+      cost > 0
+    );
   }
 
   function canStep2() {
-    return !!data.targetIso2;
+    const phrase = data.productPhrase.trim().toLowerCase();
+    const vague = ["plastic", "metal", "wood", "fabric", "food", "chemical", "part", "product", "item", "goods"];
+    const tooVague = vague.some((v) => phrase === v);
+    return phrase.length >= 5 && !tooVague && !!data.endBuyerType && data.profileConfirmed;
   }
 
   function canStep3() {
-    return !!data.unitCostEur && parseFloat(data.unitCostEur) > 0;
+    return !!data.targetIso2;
   }
 
   async function handleCheckout() {
     setSubmitting(true);
     try {
-      const moq = data.moq.trim() ? parseInt(data.moq.replace(/\D/g, ""), 10) : undefined;
-      const leadTimeDays = data.leadTimeDays.trim()
-        ? parseInt(data.leadTimeDays.replace(/\D/g, ""), 10)
-        : undefined;
-
       const productDesc = data.productDesc.trim();
       const payload: {
         hs_code: string;
         origin_iso2: string;
         target_iso2: string;
         unit_cost_eur: number;
-        capacity_units: CapacityUnits;
-        certifications: string[];
         tier: ReportTier;
         lead_count: LeadCount;
         product_name: string;
         product_desc?: string;
-        moq?: number;
-        lead_time_days?: number;
+        product_phrase?: string;
+        end_buyer_type?: string;
+        packaging_format?: string[];
       } = {
         hs_code: data.hsCode.trim(),
         origin_iso2: data.originIso2,
         target_iso2: data.targetIso2,
-        unit_cost_eur: parseFloat(data.unitCostEur),
-        capacity_units: toCapacityUnits(data.capacityUnits),
-        certifications: [],
+        unit_cost_eur: Number(data.unitCostEur),
         tier: data.tier,
         lead_count: data.leads,
         product_name: data.productName.trim(),
         ...(productDesc ? { product_desc: productDesc } : {}),
-        ...(moq && moq > 0 ? { moq } : {}),
-        ...(leadTimeDays && leadTimeDays > 0 ? { lead_time_days: leadTimeDays } : {}),
+        ...(data.productPhrase.trim() ? { product_phrase: data.productPhrase.trim() } : {}),
+        ...(data.endBuyerType ? { end_buyer_type: data.endBuyerType } : {}),
+        ...(data.packagingFormat.length ? { packaging_format: data.packagingFormat } : {}),
       };
 
       analytics.reportCreated(data.hsCode, data.originIso2, data.targetIso2, data.tier);
@@ -191,14 +238,26 @@ export function NewReportForm() {
         body: JSON.stringify(payload),
       });
       const json = await res.json();
-      if (res.ok && json.checkout_url) {
-        window.location.href = json.checkout_url;
+      if (res.ok && json.price_id) {
+        if (!paddle) {
+          toast.error("Payment system not loaded. Please refresh and try again.");
+          setSubmitting(false);
+          return;
+        }
+        paddle.Checkout.open({
+          items: [{ priceId: json.price_id as string }],
+          customData: { report_id: json.report_id as string },
+          settings: {
+            successUrl: `${window.location.origin}/reports/${json.report_id as string}`,
+          },
+        });
+        setSubmitting(false);
         return;
       }
-      alert(parseApiError(json));
+      toast.error(parseApiError(json));
       setSubmitting(false);
     } catch {
-      alert("Network error. Please try again.");
+      toast.error("Network error. Please try again.");
       setSubmitting(false);
     }
   }
@@ -353,21 +412,20 @@ export function NewReportForm() {
                 </FieldInfo>
               </Field>
 
-              <Field label="Monthly production capacity">
-                <div className="relative">
-                  <input
-                    className="form-input"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="e.g. 800"
-                    value={data.capacityUnits}
-                    onChange={(e) => setData((d) => ({ ...d, capacityUnits: e.target.value }))}
-                    style={{ paddingRight: 110 }}
-                  />
-                  <span className="absolute top-1/2 -translate-y-1/2 right-4 pointer-events-none" style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12.5, color: "#6B7280", letterSpacing: "0.02em" }}>
-                    units / month
-                  </span>
-                </div>
+              <Field label="Production cost per unit (EUR)">
+                <input
+                  className="form-input"
+                  type="number"
+                  inputMode="decimal"
+                  min="0"
+                  step="0.01"
+                  placeholder="e.g. 45.00"
+                  value={data.unitCostEur}
+                  onChange={(e) => setData((d) => ({ ...d, unitCostEur: e.target.value }))}
+                />
+                <FieldInfo>
+                  Your ex-works production cost per unit, in EUR. Used to calculate landed cost and margin in your report.
+                </FieldInfo>
               </Field>
 
               <Field label="Country of manufacture">
@@ -400,10 +458,190 @@ export function NewReportForm() {
             </div>
           )}
 
-          {/* ── Step 2: Target market ── */}
-          {step === 2 && (
-            <div key="step2" className={animClass}>
-              <StepTag step={2} />
+          {/* ── Step 2: Buyer profile ── */}
+          {step === 2 && (() => {
+            const chapter = data.hsCode.trim().slice(0, 2).padStart(2, "0");
+            const sector = HS_CHAPTER_TO_SECTOR[chapter] ?? "";
+            const sectorLabel = SECTOR_LABELS[sector] ?? "your sector";
+            const phrase = data.productPhrase.trim().toLowerCase();
+            const vagueTerms = ["plastic", "metal", "wood", "fabric", "food", "chemical", "part", "product", "item", "goods"];
+            const isTooVague = vagueTerms.some((v) => phrase === v);
+            const isConflict = data.packagingFormat.includes("bulk") && data.endBuyerType === "retail";
+            const tradeChannelNote: Record<string, string[]> = {
+              furniture_wood: ["imm cologne", "Salone del Mobile"],
+              food_beverage: ["ANUGA", "SIAL Paris"],
+              textiles_apparel: ["Première Vision", "Munich Fabric Start"],
+              metals_steel: ["EuroBLECH", "wire Düsseldorf"],
+              machinery: ["Hannover Messe", "EMO"],
+            };
+            const fairs = tradeChannelNote[sector] ?? [];
+            return (
+              <div key="step2" className={animClass}>
+                <StepTag step={2} />
+                <h2 className="step-heading">Tell us exactly what you make</h2>
+                <p className="step-sub">This shapes which buyers we find — be specific to get better leads.</p>
+
+                {/* Screen A: Sub-type & Buyer */}
+                <Field label="Describe your product in one phrase">
+                  <input
+                    className="form-input"
+                    type="text"
+                    maxLength={60}
+                    placeholder={`e.g. solid oak dining tables, precision CNC brackets`}
+                    value={data.productPhrase}
+                    onChange={(e) => setData((d) => ({ ...d, productPhrase: e.target.value, profileConfirmed: false }))}
+                  />
+                  {isTooVague && data.productPhrase.trim().length > 0 && (
+                    <div className="mt-2 flex items-start gap-2 rounded-md px-3.5 py-3 text-[12.5px]" style={{ background: "#FEF3C7", border: "1px solid #F59E0B", color: "#92400E", lineHeight: 1.5 }}>
+                      <span style={{ fontSize: 14 }}>⚠</span>
+                      <span>Too broad — buyers won't find you. Try: <strong>"solid oak dining tables"</strong> instead of <strong>"{data.productPhrase.trim()}"</strong>.</span>
+                    </div>
+                  )}
+                  {sector && (
+                    <div className="mt-2.5 flex items-start gap-2.5 rounded-md px-3.5 py-3" style={{ background: "#F6F6F4", border: "1px solid #E5E7EB", fontSize: 12.5, color: "#374151", lineHeight: 1.5 }}>
+                      <span className="shrink-0 mt-px" style={{ color: "#6B7280" }}>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <circle cx="12" cy="12" r="10" /><path d="M12 16v-4M12 8h.01" />
+                        </svg>
+                      </span>
+                      <span>HS chapter {chapter} → <strong>{sectorLabel}</strong>. We'll search buyers in this category.</span>
+                    </div>
+                  )}
+                </Field>
+
+                <Field label="Who is the end buyer of your product?">
+                  <div className="grid grid-cols-1 gap-2">
+                    {[
+                      { value: "wholesale", label: "Wholesale distributor / importer" },
+                      { value: "retail", label: "Retail chain or independent retailer" },
+                      { value: "oem", label: "Industrial / OEM manufacturer" },
+                      { value: "hospitality", label: "Hospitality / contract buyer (hotels, restaurants)" },
+                      { value: "institutional", label: "Government / institutional buyer" },
+                    ].map((opt) => (
+                      <button
+                        key={opt.value}
+                        type="button"
+                        onClick={() => setData((d) => ({ ...d, endBuyerType: opt.value, profileConfirmed: false }))}
+                        className={cn("px-3.5 py-3 text-[14px] rounded-xl border font-medium transition-all text-left")}
+                        style={data.endBuyerType === opt.value
+                          ? { background: "#C8E84E", borderColor: "#9CC129", color: "#1F2A07" }
+                          : { background: "#fff", borderColor: "#E5E7EB", color: "#374151" }}
+                      >{opt.label}</button>
+                    ))}
+                  </div>
+                </Field>
+
+                <Field label="How do you ship to buyers?">
+                  <div className="flex flex-col gap-2">
+                    {[
+                      { value: "bulk", label: "Bulk / industrial (pallets, big bags — no retail packaging)" },
+                      { value: "wholesale_packs", label: "Wholesale inner packs (cartons of 6, 12, 24 units)" },
+                      { value: "retail_ready", label: "Retail-ready (barcoded, branded, shelf-ready)" },
+                      { value: "private_label", label: "Private label / OEM (buyer's brand, we manufacture)" },
+                    ].map((opt) => {
+                      const checked = data.packagingFormat.includes(opt.value);
+                      return (
+                        <button
+                          key={opt.value}
+                          type="button"
+                          onClick={() => setData((d) => ({
+                            ...d,
+                            packagingFormat: checked
+                              ? d.packagingFormat.filter((v) => v !== opt.value)
+                              : [...d.packagingFormat, opt.value],
+                            profileConfirmed: false,
+                          }))}
+                          className="flex items-center gap-3 px-3.5 py-3 rounded-xl border text-[14px] text-left transition-all"
+                          style={checked
+                            ? { background: "#C8E84E", borderColor: "#9CC129", color: "#1F2A07" }
+                            : { background: "#fff", borderColor: "#E5E7EB", color: "#374151" }}
+                        >
+                          <span
+                            className="shrink-0 w-4.5 h-4.5 rounded border-[1.5px] inline-flex items-center justify-center"
+                            style={checked ? { background: "#1F2A07", borderColor: "#1F2A07" } : { background: "#fff", borderColor: "#D1D5DB" }}
+                          >
+                            {checked && (
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#C8E84E" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </span>
+                          {opt.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {isConflict && (
+                    <div className="mt-2 flex items-start gap-2 rounded-md px-3.5 py-3 text-[12.5px]" style={{ background: "#FEF3C7", border: "1px solid #F59E0B", color: "#92400E", lineHeight: 1.5 }}>
+                      <span style={{ fontSize: 14 }}>⚠</span>
+                      <span>Most retail chains require retail-ready packaging. Confirm you can supply in individual cartons, or change the buyer type to "Wholesale distributor".</span>
+                    </div>
+                  )}
+                </Field>
+
+                {/* Validation checkpoint */}
+                {data.productPhrase.trim().length >= 5 && !isTooVague && data.endBuyerType && (
+                  <div
+                    className="rounded-xl p-5 mb-6 mt-2"
+                    style={{ background: "#F6F6F4", border: "1px solid #E5E7EB" }}
+                  >
+                    <div className="text-[12px] font-semibold mb-3" style={{ fontFamily: "'IBM Plex Mono',monospace", letterSpacing: "0.08em", textTransform: "uppercase", color: "#6B7280" }}>
+                      Your search profile
+                    </div>
+                    <div className="text-[15px] font-semibold mb-4" style={{ color: "#0a0a0a", lineHeight: 1.4 }}>
+                      "{data.productPhrase.trim()}"
+                    </div>
+                    <div className="flex flex-col gap-2 mb-4 text-[13.5px]" style={{ color: "#374151" }}>
+                      {[
+                        ["Buyer type", {wholesale:"Wholesale distributor / importer",retail:"Retail chain",oem:"Industrial / OEM",hospitality:"Hospitality / contract",institutional:"Institutional"}[data.endBuyerType] ?? data.endBuyerType],
+                        ...(data.packagingFormat.length ? [["Packaging", data.packagingFormat.join(", ")]] : []),
+                        ...(sectorLabel ? [["Sector", `${sectorLabel} (HS chapter ${chapter})`]] : []),
+                      ].map(([k, v]) => (
+                        <div key={k} className="flex items-baseline gap-2">
+                          <span className="shrink-0 w-28" style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 11, color: "#9CA3AF", letterSpacing: "0.04em", textTransform: "uppercase" }}>{k}</span>
+                          <span className="font-medium">{v}</span>
+                        </div>
+                      ))}
+                    </div>
+                    {fairs.length > 0 && (
+                      <div className="text-[12.5px] mb-4" style={{ color: "#6B7280", lineHeight: 1.6 }}>
+                        We'll also cross-reference buyers attending <strong style={{ color: "#374151" }}>{fairs.join(", ")}</strong>.
+                      </div>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => setData((d) => ({ ...d, profileConfirmed: true }))}
+                      className="w-full inline-flex items-center justify-center gap-2 font-semibold rounded-full transition-all duration-150"
+                      style={data.profileConfirmed
+                        ? { background: "#1F2A07", color: "#C8E84E", border: "1px solid #1F2A07", padding: "14px 24px", fontSize: 14.5, cursor: "default" }
+                        : { background: "#C8E84E", color: "#1F2A07", border: "1px solid transparent", padding: "14px 24px", fontSize: 14.5, cursor: "pointer", boxShadow: "0 1px 0 rgba(0,0,0,0.04)" }}
+                    >
+                      {data.profileConfirmed ? (
+                        <>
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                          Profile confirmed
+                        </>
+                      ) : "This looks right — confirm profile"}
+                    </button>
+                  </div>
+                )}
+
+                <div className="mt-4">
+                  <BackLink onClick={back} />
+                  <PrimaryButton onClick={next} disabled={!canStep2()}>
+                    Continue <ArrowRight />
+                  </PrimaryButton>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* ── Step 3: Target market ── */}
+          {step === 3 && (
+            <div key="step3" className={animClass}>
+              <StepTag step={3} />
               <h2 className="step-heading">Where do you want to sell?</h2>
               <p className="step-sub">Pick a target market and how many ranked buyers you want.</p>
 
@@ -492,71 +730,6 @@ export function NewReportForm() {
 
               <div className="mt-9">
                 <BackLink onClick={back} />
-                <PrimaryButton onClick={next} disabled={!canStep2()}>
-                  Continue <ArrowRight />
-                </PrimaryButton>
-              </div>
-            </div>
-          )}
-
-          {/* ── Step 3: Pricing ── */}
-          {step === 3 && (
-            <div key="step3" className={animClass}>
-              <StepTag step={3} />
-              <h2 className="step-heading">Help us find the right buyers</h2>
-              <p className="step-sub">Used to match you with buyers in your price range. Never shared publicly.</p>
-
-              <Field label="Your unit manufacturing cost">
-                <div className="relative">
-                  <span className="absolute top-1/2 -translate-y-1/2 left-4 pointer-events-none text-[14px]" style={{ color: "#6B7280" }}>€</span>
-                  <input
-                    className="form-input"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="e.g. 180"
-                    value={data.unitCostEur}
-                    onChange={(e) => setData((d) => ({ ...d, unitCostEur: e.target.value }))}
-                    style={{ paddingLeft: 28 }}
-                  />
-                </div>
-              </Field>
-
-              <Field label="Minimum order quantity">
-                <div className="relative">
-                  <input
-                    className="form-input"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="e.g. 50"
-                    value={data.moq}
-                    onChange={(e) => setData((d) => ({ ...d, moq: e.target.value }))}
-                    style={{ paddingRight: 72 }}
-                  />
-                  <span className="absolute top-1/2 -translate-y-1/2 right-4 pointer-events-none" style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12.5, color: "#6B7280", letterSpacing: "0.02em" }}>
-                    units
-                  </span>
-                </div>
-              </Field>
-
-              <Field label="Lead time from order to shipment">
-                <div className="relative">
-                  <input
-                    className="form-input"
-                    type="text"
-                    inputMode="numeric"
-                    placeholder="e.g. 21"
-                    value={data.leadTimeDays}
-                    onChange={(e) => setData((d) => ({ ...d, leadTimeDays: e.target.value }))}
-                    style={{ paddingRight: 72 }}
-                  />
-                  <span className="absolute top-1/2 -translate-y-1/2 right-4 pointer-events-none" style={{ fontFamily: "'IBM Plex Mono',monospace", fontSize: 12.5, color: "#6B7280", letterSpacing: "0.02em" }}>
-                    days
-                  </span>
-                </div>
-              </Field>
-
-              <div className="mt-9">
-                <BackLink onClick={back} />
                 <PrimaryButton onClick={next} disabled={!canStep3()}>
                   Continue <ArrowRight />
                 </PrimaryButton>
@@ -578,6 +751,7 @@ export function NewReportForm() {
                 {[
                   { k: "Product", v: data.productName || "—" },
                   { k: "HS Code", v: data.hsCode || "—" },
+                  { k: "Unit cost", v: data.unitCostEur ? `€${data.unitCostEur}` : "—" },
                   {
                     k: "Target country",
                     v: (
@@ -733,7 +907,7 @@ function StepTag({ step }: { step: Step }) {
       }}
     >
       <span className="w-1.25 h-1.25 rounded-full shrink-0" style={{ background: "#9CC129" }} />
-      Step {step} of 4
+      Step {step} of 5
     </span>
   );
 }

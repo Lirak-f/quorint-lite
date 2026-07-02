@@ -1,0 +1,144 @@
+sector_name: minerals_mining
+hs_chapters: ["25", "26", "27"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Mineralien Großhandel", "Baustoffe Mineralien Großhandel", "Steinkohle Großhandel"]
+  AT: ["Mineralien Großhandel Österreich", "Rohstoffe Großhandel Wien"]
+  IT: ["minerali ingrosso", "materie prime minerali ingrosso", "combustibili ingrosso"]
+  FR: ["minéraux grossiste", "matières premières minérales grossiste France"]
+  NL: ["mineralen groothandel", "grondstoffen groothandel Nederland"]
+  CH: ["Mineralien Grosshandel Schweiz", "Rohstoffe Grosshandel"]
+
+retail_to_wholesale_ratio: 0.88
+typical_retailer_margin: 0.12
+
+compliance_checks:
+  - id: clp_labelling
+    name: CLP Regulation Classification, Labelling & Packaging (EC 1272/2008)
+    type: mandatory
+    critical: true
+    cost_low_eur: 500
+    cost_high_eur: 2500
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 8
+    providers:
+      - "Chemical safety consultant"
+      - "ECHA database: echa.europa.eu/information-on-chemicals"
+    note: "EU CLP Regulation 1272/2008 — hazardous minerals (silica, asbestos-free minerals, sulfur compounds, coal, petroleum products) must be classified and labelled according to GHS/CLP. Safety Data Sheets (SDS) in the language of the destination country are mandatory. ECHA's C&L Inventory should be checked for harmonised classifications. Chapter 27 fuels have specific SDS requirements."
+
+  - id: reach_registration
+    name: REACH Registration (EC 1907/2006) — Substances >1 tonne/year
+    type: mandatory
+    critical: false
+    cost_low_eur: 2000
+    cost_high_eur: 15000
+    lead_time_weeks_min: 8
+    lead_time_weeks_max: 26
+    providers:
+      - "ECHA REACH helpdesk: echa.europa.eu"
+      - "Chemical regulatory consultant: BASF SE, Intertek"
+    note: "EU REACH Regulation 1907/2006 — substances manufactured or imported into the EU above 1 tonne/year must be registered with ECHA. This applies to mineral substances (silica, limestone, gypsum, kaolin, etc.) if not already registered by a REACH-Only Representative. The EU importer typically handles REACH registration. Verify with importer whether REACH registration exists for your specific CAS number."
+
+  - id: adr_transport
+    name: ADR Dangerous Goods Transport Classification (Chapter 27 Fuels/Gases)
+    type: mandatory
+    critical: false
+    cost_low_eur: 300
+    cost_high_eur: 1500
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 4
+    providers:
+      - "Accredited ADR safety advisor (DGSA)"
+      - "Logistics company with ADR certification"
+    note: "European Agreement for Dangerous Goods by Road (ADR) — petroleum products (HS 27), liquefied gases, and certain minerals classified as dangerous goods require ADR documentation: proper shipping name, UN number, packing group, emergency information panel. Transport company must be ADR-certified. Driver requires ADR certificate. Required for road transport through EU/WB6 countries."
+
+  - id: eu_energy_documentation
+    name: Energy Product Import Documentation (HS 27 — Coal, Oil, Gas)
+    type: mandatory
+    critical: false
+    cost_low_eur: 400
+    cost_high_eur: 1500
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 3
+    providers:
+      - "EU customs agent"
+      - "Energy market regulator in destination country"
+    note: "EU Energy Taxation Directive 2003/96/EC — energy products (coal, petroleum, natural gas) are subject to energy excise duties on import. Coal suppliers must provide energy content certificates and origin documentation. Anti-dumping measures on certain coal products may apply. Verify current EU trade defence measures at trade.ec.europa.eu."
+
+  - id: iso_9001_mining
+    name: ISO 9001:2015 Quality Management
+    type: commercial_expected
+    critical: false
+    cost_low_eur: 3000
+    cost_high_eur: 7000
+    lead_time_weeks_min: 12
+    lead_time_weeks_max: 24
+    providers:
+      - "Bureau Veritas"
+      - "SGS"
+      - "TÜV Rheinland"
+    note: "Major industrial buyers (construction companies, chemical plants, energy producers) require ISO 9001 from mineral suppliers. Also relevant: ISO 14001 (environmental management) for mining operations, increasingly demanded by EU buyers under ESG procurement policies."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "commodity trader"
+    - "raw materials manager"
+    - "supply chain"
+    - "mineral buyer"
+  company_keywords:
+    - "Mineralienhandel"
+    - "mineral wholesaler"
+    - "mineral importer"
+    - "Baustoffhandel"
+    - "construction materials distributor"
+    - "Rohstoffhandel"
+    - "raw materials trader"
+    - "fuel distributor"
+    - "Kraftstoffhandel"
+    - "coal trader"
+    - "Kohlehandel"
+    - "aggregate supplier"
+    - "Gesteinskörnung"
+    - "sand gravel supplier"
+    - "minerali ingrosso"
+  company_size_ranges: ["11-50", "51-200", "201-500", "501-1000"]
+
+trade_fairs:
+  - name: "Bauma Munich"
+    country: DE
+    city: Munich
+    month: 4
+    url: "https://www.bauma.de"
+  - name: "SteinExpo Germany"
+    country: DE
+    city: Homberg
+    month: 9
+    url: "https://www.steinexpo.de"
+  - name: "Mining & Minerals Industry Conference"
+    country: AT
+    city: Vienna
+    month: 5
+  - name: "Eurocoal Annual Conference"
+    country: DE
+    city: Dusseldorf
+    month: 6
+    url: "https://euracoal.eu"
+
+typical_first_order_units: 50000
+typical_compliance_cost_eur: 4000
+sample_shipping_cost_eur: 1500
+
+competitor_query_template: >
+  Who are the top 3-5 mineral and mining product exporters (industrial minerals, stone,
+  coal, petroleum products) currently supplying {target_country} industrial buyers
+  and construction companies in 2025?
+  Focus on suppliers from Balkans (Kosovo, Serbia, Bosnia, North Macedonia), Ukraine, Turkey.
+  For each: product, country of origin, approximate price per tonne,
+  certifications (ISO 9001, CLP/REACH status), and buyers they supply.
+  Cite sources.

@@ -1,0 +1,145 @@
+sector_name: arms_ammunition
+hs_chapters: ["93"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Jagdwaffen Großhandel", "Munition Großhandel Deutschland", "Sportwaffen Großhandel"]
+  AT: ["Waffen Großhandel Österreich", "Munition Großhandel Wien"]
+  IT: ["armi caccia ingrosso", "munizioni ingrosso Italia", "armi sportive ingrosso"]
+  FR: ["armes chasse grossiste", "munitions grossiste France", "armes de sport grossiste"]
+  NL: ["wapens groothandel", "munitie groothandel Nederland", "jachtgeweren groothandel"]
+  CH: ["Jagdwaffen Grosshandel Schweiz", "Munition Grosshandel"]
+
+retail_to_wholesale_ratio: 0.60
+typical_retailer_margin: 0.40
+
+compliance_checks:
+  - id: eu_firearms_directive
+    name: EU Firearms Directive (Directive 2021/555/EU, consolidating 91/477/EEC)
+    type: mandatory
+    critical: true
+    cost_low_eur: 2000
+    cost_high_eur: 10000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 16
+    providers:
+      - "National firearms authority in exporting country"
+      - "EU importing country national police or interior ministry"
+      - "Specialist trade law firm"
+    note: "EU Directive 2021/555/EU — firearms, essential components, and ammunition are strictly regulated. Category A (prohibited), B (subject to authorisation), C (subject to declaration), D (other). Commercial transfers within EU require EU firearms transfer authorisation from both exporting and importing member state. Importers must be licensed dealers. WB6 country exporters need export licence from national authority. Civilian firearms (hunting, sport) are category B/C — permit required per transaction."
+
+  - id: end_user_certificate
+    name: End-User Certificate (EUC) — Mandatory for Every Shipment
+    type: mandatory
+    critical: true
+    cost_low_eur: 500
+    cost_high_eur: 2000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 8
+    providers:
+      - "National defence/interior ministry of destination country"
+      - "Specialist export control legal advisor"
+    note: "End-User Certificate (EUC) is required for all firearms and ammunition shipments. The EUC identifies the final end-user and certifies that goods will not be re-exported without authorisation. Required by exporting country's export licensing authority before granting export permit. For civilian firearms exports: importer's firearms dealer licence and end-user declaration sufficient in most EU countries."
+
+  - id: cip_proof_marks
+    name: CIP Proof Testing & Proof Marks (International Proof Commission)
+    type: mandatory
+    critical: true
+    cost_low_eur: 200
+    cost_high_eur: 1000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 6
+    providers:
+      - "National proof house: Beschussamt Ulm/Munich (DE), Vienna (AT), Banc d'Épreuve de Liège (BE)"
+      - "CIP: cip-bobp.org"
+    note: "International Proof Commission (CIP) — all civilian firearms sold in EU must bear proof marks from a recognised CIP proof house. Proof houses test firearms at elevated pressure to certify safety. CIP has 14 member countries including most EU states. Without CIP proof marks, firearms cannot be sold through EU dealers. WB6 manufacturers must have firearms proofed at a CIP proof house — nearest are Vienna (AT) and Liège (BE)."
+
+  - id: export_licence
+    name: National Export Licence — WB6 Origin
+    type: mandatory
+    critical: true
+    cost_low_eur: 300
+    cost_high_eur: 1500
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "Ministry of Interior / Defence Export Control Agency in country of origin"
+      - "For Kosovo: Ministry of Internal Affairs, Export Control Department"
+    note: "All WB6 countries are signatories to international arms control treaties and implement EU-aligned export control regulations. Export licence required for every shipment of firearms and ammunition from WB6 country. Licence specifies buyer, end-user, quantity, and HS code. Annual export control reports required. ITAR (US) restrictions may apply if US-sourced components are incorporated."
+
+  - id: eu_import_licence
+    name: EU Import Licence — Per Member State
+    type: mandatory
+    critical: false
+    cost_low_eur: 200
+    cost_high_eur: 800
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 6
+    providers:
+      - "National police authority: Bundeskriminalamt (DE), BMI (AT), Questura (IT)"
+      - "Licensed firearms importer in destination country"
+    note: "Each EU member state issues import licences for firearms and ammunition. The EU importer (licensed dealer) typically handles import licence applications. Germany: Bundeskriminalamt approval. Austria: BMI (Bundesministerium für Inneres). Italy: Questura (local police). Processing times and requirements vary significantly by member state. The licensed importer is legally responsible for import compliance."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "import manager"
+    - "weapons dealer"
+  company_keywords:
+    - "Waffenhändler"
+    - "armurerie"
+    - "armeria"
+    - "firearms dealer"
+    - "Jagdwaffen"
+    - "armi caccia"
+    - "armes chasse"
+    - "hunting equipment"
+    - "Jagdausrüstung"
+    - "Sportwaffen"
+    - "armi sportive"
+    - "armes de tir"
+    - "gun shop"
+    - "ammunition distributor"
+    - "Munitionshandel"
+  company_size_ranges: ["11-50", "51-200"]
+
+trade_fairs:
+  - name: "IWA OutdoorClassics Nuremberg"
+    country: DE
+    city: Nuremberg
+    month: 2
+    url: "https://www.iwa.info"
+  - name: "Enforce Tac Nuremberg"
+    country: DE
+    city: Nuremberg
+    month: 2
+    url: "https://www.enforce-tac.de"
+  - name: "Milipol Paris"
+    country: FR
+    city: Paris
+    month: 11
+    url: "https://www.milipol.com"
+  - name: "HIT Show Vicenza (Italy)"
+    country: IT
+    city: Vicenza
+    month: 2
+    url: "https://www.hitshow.it"
+
+typical_first_order_units: 500
+typical_compliance_cost_eur: 15000
+sample_shipping_cost_eur: 800
+
+competitor_query_template: >
+  Who are the top 3-5 civilian firearms and ammunition exporters (hunting rifles, sporting
+  pistols, shotguns, ammunition) currently supplying {target_country} licensed firearms
+  dealers and distributors in 2025?
+  Focus on suppliers from Balkans (especially Bosnia — Sarajevo arms tradition), Austria,
+  Czech Republic, Germany, and Turkey.
+  For each: product category, country of origin, approximate wholesale price per unit,
+  CIP proof status, export control compliance, and key dealer relationships.
+  Cite sources.

@@ -1,0 +1,151 @@
+sector_name: chemicals_pharma
+hs_chapters: ["28", "29", "30", "31", "32", "33", "34", "35", "36", "37", "38"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Chemikalien Großhandel", "Pharma Rohstoffe Großhandel", "Kosmetik Rohstoffe Großhandel"]
+  AT: ["Chemikalien Großhandel Österreich", "pharmazeutische Rohstoffe Großhandel"]
+  IT: ["prodotti chimici ingrosso", "materie prime farmaceutiche ingrosso", "cosmetici ingrosso"]
+  FR: ["produits chimiques grossiste", "matières premières pharmaceutiques grossiste", "cosmétiques grossiste"]
+  NL: ["chemicaliën groothandel", "farmaceutische grondstoffen groothandel", "cosmetica ingrediënten"]
+  CH: ["Chemikalien Grosshandel Schweiz", "Pharmawirkstoffe Grosshandel"]
+
+retail_to_wholesale_ratio: 0.70
+typical_retailer_margin: 0.30
+
+compliance_checks:
+  - id: reach_registration
+    name: REACH Substance Registration (EC 1907/2006)
+    type: mandatory
+    critical: true
+    cost_low_eur: 5000
+    cost_high_eur: 50000
+    lead_time_weeks_min: 12
+    lead_time_weeks_max: 52
+    providers:
+      - "ECHA REACH-IT: reach.echa.europa.eu"
+      - "REACH Only Representative: Intertek, SGS, BASF"
+      - "EU importer (can act as registrant)"
+    note: "EU REACH Regulation 1907/2006 — all chemical substances imported into EU above 1 tonne/year must be registered with ECHA by an EU-based entity (Only Representative or EU importer). Registration costs depend on tonnage band (1-10t, 10-100t, 100t+) and whether joint submission is possible. Pre-SIEF communication required. Non-EU manufacturers must appoint an Only Representative (OR) before first shipment."
+
+  - id: clp_labelling
+    name: CLP Classification, Labelling & Packaging (EC 1272/2008)
+    type: mandatory
+    critical: true
+    cost_low_eur: 800
+    cost_high_eur: 4000
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 8
+    providers:
+      - "Chemical safety consultant"
+      - "ECHA C&L Inventory: echa.europa.eu"
+    note: "EU CLP Regulation 1272/2008 — all hazardous chemicals must be classified, labelled with GHS pictograms, signal words, hazard/precautionary statements, and packaged safely. Safety Data Sheets (SDS) in 16-section format (EU Annex II) required in destination language. CLP notifications to ECHA mandatory for hazardous substances. GHS labels on outer packaging."
+
+  - id: gmp_pharma
+    name: EU Good Manufacturing Practice (GMP) — Pharmaceutical (2001/83/EC)
+    type: mandatory
+    critical: true
+    cost_low_eur: 15000
+    cost_high_eur: 80000
+    lead_time_weeks_min: 26
+    lead_time_weeks_max: 78
+    providers:
+      - "EMA GMP inspection: ema.europa.eu"
+      - "National medicines regulatory authority in destination country"
+      - "GMP consultant: Compliance Architects, ValSource"
+    note: "EU Directive 2001/83/EC and EC GMP Guide — active pharmaceutical ingredients (APIs) and finished drugs exported to EU require GMP certification from a competent authority. EU-licensed importers require GMP certification of their non-EU suppliers. Inspection by EU authorities or mutual recognition agreement (MRA) countries. WB6 countries do not have MRA with EU — inspections required."
+
+  - id: biocidal_products
+    name: Biocidal Products Regulation Compliance (EU 528/2012)
+    type: mandatory
+    critical: false
+    cost_low_eur: 3000
+    cost_high_eur: 20000
+    lead_time_weeks_min: 12
+    lead_time_weeks_max: 52
+    providers:
+      - "ECHA BPR portal: echa.europa.eu/regulations/biocidal-products-regulation"
+      - "Regulatory consultant specialising in BPR"
+    note: "EU Biocidal Products Regulation 528/2012 — disinfectants, preservatives, insecticides, and other biocidal products (HS 34 soaps, HS 38 other chemical products) require EU authorisation before market placement. Active substance must be approved (EU positive list). Product authorisation requires dossier submission to ECHA or member state. Significant cost and lead time."
+
+  - id: cosmetics_regulation
+    name: EU Cosmetics Regulation (EC 1223/2009) — HS 33
+    type: mandatory
+    critical: false
+    cost_low_eur: 2000
+    cost_high_eur: 10000
+    lead_time_weeks_min: 6
+    lead_time_weeks_max: 20
+    providers:
+      - "Responsible Person (RP) in EU required"
+      - "CPNP notification portal: ec.europa.eu/growth/sectors/cosmetics/cpnp"
+      - "Safety assessor: Eurofins, SGS"
+    note: "EU Cosmetics Regulation 1223/2009 — all cosmetic products (HS 33: perfumes, beauty, personal care) require: EU Responsible Person, Product Information File (PIF), safety assessment, notification in CPNP (Cosmetic Products Notification Portal), labelling compliance (INCI names, warnings, batch code). Certain ingredients are prohibited (Annexes II, III, IV, V, VI)."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "import manager"
+    - "category manager"
+    - "supply chain"
+  company_keywords:
+    - "chemikalien großhandel"
+    - "chemical distributor"
+    - "chemical wholesaler"
+    - "pharma distributor"
+    - "pharmaceutical wholesaler"
+    - "Pharmadistributor"
+    - "cosmetics distributor"
+    - "Kosmetikgroßhandel"
+    - "chemical importer"
+    - "Chemiehandel"
+    - "négoce chimique"
+    - "distributore chimico"
+    - "specialty chemicals"
+    - "Spezialchemikalien"
+    - "industrial chemicals"
+  company_size_ranges: ["11-50", "51-200", "201-500", "501-1000"]
+
+trade_fairs:
+  - name: "Chemspec Europe Cologne"
+    country: DE
+    city: Cologne
+    month: 6
+    url: "https://www.chemspeceurope.com"
+  - name: "CPHI Frankfurt (Pharma Ingredients)"
+    country: DE
+    city: Frankfurt
+    month: 10
+    url: "https://www.cphi.com"
+  - name: "in-cosmetics Global Barcelona"
+    country: ES
+    city: Barcelona
+    month: 4
+    url: "https://www.in-cosmetics.com"
+  - name: "European Coatings Show Nuremberg"
+    country: DE
+    city: Nuremberg
+    month: 3
+    url: "https://www.european-coatings-show.com"
+  - name: "Agrishow / Agritechnica Hannover (Fertilisers)"
+    country: DE
+    city: Hannover
+    month: 11
+    url: "https://www.agritechnica.com"
+
+typical_first_order_units: 5000
+typical_compliance_cost_eur: 25000
+sample_shipping_cost_eur: 800
+
+competitor_query_template: >
+  Who are the top 3-5 chemical and pharmaceutical raw material exporters currently
+  supplying {target_country} distributors, manufacturers, and importers in 2025?
+  Focus on suppliers from Balkans, Eastern Europe, India, and China with EU-established presence.
+  For each: product category, country of origin, approximate price per kg or tonne,
+  EU certifications (REACH registration, GMP, BPR status), and key EU customers.
+  Cite sources.

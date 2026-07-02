@@ -57,6 +57,8 @@ def _process_job(job_data: dict[str, Any]) -> None:
             certifications=job_data.get("certifications", []),
             capacity_units=job_data.get("capacity_units", "<100/mo"),
             company=job_data.get("company"),
+            product_name=job_data.get("product_name"),
+            product_desc=job_data.get("product_desc"),
         )
         tier = job_data.get("tier", "full")
         is_test = job_data.get("is_test", False)

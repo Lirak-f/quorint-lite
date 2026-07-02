@@ -1,0 +1,132 @@
+sector_name: tobacco
+hs_chapters: ["24"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Tabak Großhandel", "Zigaretten Großhandel Deutschland", "Rohtabak Großhandel"]
+  AT: ["Tabak Großhandel Österreich", "Rauchwaren Großhandel Wien"]
+  IT: ["tabacco ingrosso", "sigarette ingrosso Italia", "tabacco sfuso ingrosso"]
+  FR: ["tabac grossiste", "cigarettes en gros grossiste France", "tabac à rouler grossiste"]
+  NL: ["tabak groothandel", "sigaretten groothandel Nederland", "rookwaren groothandel"]
+  CH: ["Tabak Grosshandel Schweiz", "Zigaretten Grosshandel"]
+
+retail_to_wholesale_ratio: 0.75
+typical_retailer_margin: 0.25
+
+compliance_checks:
+  - id: tpd_compliance
+    name: EU Tobacco Products Directive (TPD2) Compliance — 2014/40/EU
+    type: mandatory
+    critical: true
+    cost_low_eur: 3000
+    cost_high_eur: 10000
+    lead_time_weeks_min: 8
+    lead_time_weeks_max: 24
+    providers:
+      - "EU Common Entry Gate (EU-CEG): ec.europa.eu/health/euceg"
+      - "Regulatory consultant: tobacco specialist law firm"
+    note: "EU Directive 2014/40/EU (TPD2) — all tobacco products sold in the EU must be notified via the EU Common Entry Gate (EU-CEG) before market placement. Notification includes ingredients list, emissions data, studies, and packaging details. Health warnings must cover 65% of front and back of pack. Manufacturers pay notification fee per product variant. Lead time includes lab testing and notification processing."
+
+  - id: track_trace_registration
+    name: EU Tobacco Track & Trace Registration (EU 2018/574)
+    type: mandatory
+    critical: true
+    cost_low_eur: 500
+    cost_high_eur: 2000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 8
+    providers:
+      - "EU ID Issuer: traceability.jti.com or equivalent"
+      - "National customs authority for EMCS integration"
+    note: "EU Delegated Regulation 2018/573 and Implementing Regulation 2018/574 — all tobacco products must carry a unique identifier (UI) for track-and-trace. Manufacturers must register with an EU-recognised ID issuer, obtain Economic Operator IDs, facility IDs, and machine IDs. Required from May 2019 for cigarettes, May 2024 for all other tobacco products."
+
+  - id: excise_duty_registration
+    name: EU Excise Duty & EMCS Registration
+    type: mandatory
+    critical: true
+    cost_low_eur: 1000
+    cost_high_eur: 4000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "EU importer/authorised warehousekeeper must be registered"
+      - "National customs authority of destination country"
+    note: "EU Directive 2020/262 — tobacco products are subject to excise duty in all EU member states. Movement of tobacco products under duty suspension requires use of the Excise Movement and Control System (EMCS). The EU importer must be an Authorised Warehousekeeper or Registered Consignee. Duty rates vary significantly by country (e.g., Germany: ~€240/1000 cigarettes + ad valorem)."
+
+  - id: health_warning_labels
+    name: Health Warnings & Packaging Compliance
+    type: mandatory
+    critical: false
+    cost_low_eur: 1500
+    cost_high_eur: 5000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "Packaging design agency with EU TPD2 experience"
+      - "EU notification consultant"
+    note: "TPD2 Article 9 — combined health warnings (text + image) must cover 65% of both front and back of pack. Text warnings in language of destination country. Image library maintained by EC (tobacco.ec.europa.eu/tobacco-library). Each destination country may have additional national requirements on top of EU minimum. Design and print new packaging per market."
+
+  - id: ingredients_additives_notification
+    name: Ingredients & Additives Notification (EU-CEG)
+    type: mandatory
+    critical: false
+    cost_low_eur: 2000
+    cost_high_eur: 6000
+    lead_time_weeks_min: 6
+    lead_time_weeks_max: 16
+    providers:
+      - "Contract laboratory for emissions testing: SGS, Eurofins"
+      - "EU-CEG submission consultant"
+    note: "TPD2 Article 5-6 — all ingredients and additives must be reported, with toxicological data for ingredients above 0.1% by weight. Characterising flavours (menthol in cigarettes banned since 2020) are prohibited. Commission-prohibited additives list must be checked. Annual reporting requirement after initial submission."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "import manager"
+    - "category manager"
+    - "tobacco buyer"
+  company_keywords:
+    - "tabak"
+    - "tabacco"
+    - "tabac"
+    - "tobacco"
+    - "rauchwaren"
+    - "leaf dealer"
+    - "cigar"
+    - "cigarette"
+    - "Großhandel Tabak"
+    - "tobacco distributor"
+    - "duty-free"
+  company_size_ranges: ["11-50", "51-200", "201-500"]
+
+trade_fairs:
+  - name: "InterTabac Dortmund"
+    country: DE
+    city: Dortmund
+    month: 9
+    url: "https://www.intertabac.de"
+  - name: "Tobacco Expo Italy"
+    country: IT
+    city: Milan
+    month: 10
+  - name: "NATO (Non-Cigarette Tobacco) Conference"
+    country: DE
+    city: Berlin
+    month: 3
+
+typical_first_order_units: 10000
+typical_compliance_cost_eur: 12000
+sample_shipping_cost_eur: 500
+
+competitor_query_template: >
+  Who are the top 3-5 tobacco product exporters (cigarettes, raw tobacco leaf, cigars)
+  currently supplying {target_country} distributors and wholesalers in 2025?
+  Focus on suppliers from Balkans, Eastern Europe, North Macedonia, and Turkey.
+  For each: product category, country of origin, approximate wholesale price,
+  EU-CEG registration status, track-and-trace compliance, and key customers.
+  Cite sources.

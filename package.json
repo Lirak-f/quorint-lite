@@ -1,5 +1,11 @@
 {
   "name": "quorint",
   "version": "0.1.0",
-  "private": true
+  "private": true,
+  "scripts": {
+    "dev": "concurrently --names \"api,web\" --prefix-colors \"yellow,cyan\" \"cd apps/api && uvicorn main:app --reload\" \"cd apps/web && npm run dev\""
+  },
+  "devDependencies": {
+    "concurrently": "^9.0.0"
+  }
 }

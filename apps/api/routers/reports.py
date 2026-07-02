@@ -19,7 +19,7 @@ from posthog_client import get_posthog
 router = APIRouter()
 
 # Countries with freight benchmark coverage in the DB
-SUPPORTED_TARGET_COUNTRIES = {"AT", "DE", "IT", "FR", "NL", "CH"}
+SUPPORTED_TARGET_COUNTRIES = {"AT", "DE", "IT", "FR", "NL", "CH", "SE"}
 
 
 # ─────────────────────────────────────────
@@ -40,11 +40,18 @@ class CreateReportRequest(BaseModel):
     lead_count: Optional[int] = Field(None, ge=10, le=30)
     moq: Optional[int] = Field(None, gt=0)
     lead_time_days: Optional[int] = Field(None, gt=0)
+    # Product profile (Step 1b)
+    product_phrase: Optional[str] = None
+    end_buyer_type: Optional[str] = None
+    price_tier: Optional[str] = None
+    packaging_format: Optional[list[str]] = None
+    material_subtype: Optional[str] = None
+    processing_level: Optional[str] = None
 
 
 class CreateReportResponse(BaseModel):
     report_id: str
-    checkout_url: str
+    price_id: str
     status: str = "queued"
 
 
@@ -152,13 +159,12 @@ async def create_report(
     user: dict = Depends(require_auth),
 ) -> CreateReportResponse:
     """
-    Create a new report job and return a Paddle checkout URL.
+    Create a new report job and return the price_id for Paddle overlay checkout.
 
     Payment flow:
-      1. Report row created with status='queued', no paddle_transaction_id yet.
-      2. Paddle transaction created with report_id in custom_data.
-      3. Frontend redirects customer to checkout_url (Paddle-hosted).
-      4. Job is NOT enqueued until webhook confirms transaction.completed.
+      1. Report row created with status='queued'.
+      2. Frontend opens Paddle overlay with price_id and report_id in customData.
+      3. Job is NOT enqueued until webhook confirms transaction.completed.
     """
     _validate_hs_code(body.hs_code)
     _validate_target(body.target_iso2)
@@ -194,6 +200,18 @@ async def create_report(
         report_row["moq"] = body.moq
     if body.lead_time_days is not None:
         report_row["lead_time_days"] = body.lead_time_days
+    if body.product_phrase:
+        report_row["product_phrase"] = body.product_phrase
+    if body.end_buyer_type:
+        report_row["end_buyer_type"] = body.end_buyer_type
+    if body.price_tier:
+        report_row["price_tier"] = body.price_tier
+    if body.packaging_format:
+        report_row["packaging_format"] = body.packaging_format
+    if body.material_subtype:
+        report_row["material_subtype"] = body.material_subtype
+    if body.processing_level:
+        report_row["processing_level"] = body.processing_level
 
     _insert_report_row(db, report_row)
 
@@ -213,49 +231,8 @@ async def create_report(
             },
         )
 
-    # Create Paddle transaction — job is held until webhook fires
-    from paddle_client import paddle
-    from paddle_billing.Resources.Transactions.Operations.CreateTransaction import CreateTransaction  # type: ignore[import-untyped]
-    from paddle_billing.Entities.Shared import CollectionMode, CustomData
-
     price_id = _price_id_for_tier(body.tier)
-    app_url = os.getenv("NEXT_PUBLIC_APP_URL", "http://localhost:3000")
-
-    try:
-        transaction = paddle.transactions.create(
-            CreateTransaction(
-                items=[{"price_id": price_id, "quantity": 1}],
-                custom_data=CustomData({"report_id": report_id}),
-                collection_mode=CollectionMode.Automatic,
-                checkout={"url": f"{app_url}/reports/{report_id}"} if not app_url.startswith("http://localhost") else None,
-            )
-        )
-    except Exception as e:
-        # Roll back the report row so the user can retry
-        db.table("reports").delete().eq("id", report_id).execute()
-        raise HTTPException(status_code=502, detail=f"Could not create Paddle transaction: {e}")
-
-    checkout_url = transaction.checkout.url
-    if not checkout_url:
-        db.table("reports").delete().eq("id", report_id).execute()
-        raise HTTPException(status_code=502, detail="Paddle returned no checkout URL")
-
-    if ph:
-        ph.capture(
-            distinct_id=user_id,
-            event="checkout_initiated",
-            properties={
-                "report_id": report_id,
-                "tier": body.tier,
-                "target_iso2": body.target_iso2.upper(),
-            },
-        )
-
-    return CreateReportResponse(
-        report_id=report_id,
-        checkout_url=checkout_url,
-        status="queued",
-    )
+    return CreateReportResponse(report_id=report_id, price_id=price_id, status="queued")
 
 
 @router.post("/reports/{report_id}/run", status_code=202)
@@ -292,15 +269,30 @@ async def run_report(
     from models import ManufacturerInput
     from pipeline.orchestrator import run_pipeline
 
+    raw_cost = row.get("unit_cost_eur")
+    if raw_cost is None:
+        raise HTTPException(status_code=400, detail="unit_cost_eur is missing from the report")
+    unit_cost = float(raw_cost)
+    if unit_cost <= 0:
+        raise HTTPException(status_code=400, detail="unit_cost_eur must be greater than 0")
+
     manufacturer = ManufacturerInput(
         hs_code=row["hs_code"],
         origin_iso2=row["origin_iso2"],
         target_iso2=row["target_iso2"],
-        unit_cost_eur=float(row.get("unit_cost_eur") or 0),
+        unit_cost_eur=unit_cost,
         tier=row.get("tier", "full"),
         certifications=row.get("certifications") or [],
         capacity_units=row.get("capacity_units") or "<100/mo",
         company=None,
+        product_name=row.get("product_name"),
+        product_desc=row.get("product_desc"),
+        product_phrase=row.get("product_phrase"),
+        end_buyer_type=row.get("end_buyer_type"),
+        price_tier=row.get("price_tier"),
+        packaging_format=row.get("packaging_format"),
+        material_subtype=row.get("material_subtype"),
+        processing_level=row.get("processing_level"),
     )
 
     def _run():

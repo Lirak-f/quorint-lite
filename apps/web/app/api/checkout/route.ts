@@ -5,7 +5,7 @@ const API_BASE = process.env.API_URL ?? process.env.NEXT_PUBLIC_API_URL ?? "http
 
 /**
  * Proxy to FastAPI POST /api/reports.
- * Returns { report_id, checkout_url } — frontend redirects to checkout_url.
+ * Returns { report_id, price_id } — frontend opens Paddle overlay checkout.
  */
 export async function POST(req: Request) {
   const supabase = await createClient();

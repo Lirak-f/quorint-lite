@@ -22,6 +22,15 @@ class ManufacturerInput(BaseModel):
     capacity_units: Literal["<100/mo", "100-500/mo", "500+/mo"] = "<100/mo"
     tier: Literal["starter", "full"] = "full"
     company: Optional[str] = None
+    product_name: Optional[str] = None
+    product_desc: Optional[str] = None
+    # Product profile fields (Step 1b) — all optional for backward compat
+    product_phrase: Optional[str] = None          # short specific phrase, e.g. "solid oak dining tables"
+    end_buyer_type: Optional[str] = None          # wholesale|retail|oem|hospitality|institutional
+    price_tier: Optional[str] = None             # value|mid|premium
+    packaging_format: Optional[list[str]] = None  # bulk|wholesale_packs|retail_ready|private_label
+    material_subtype: Optional[str] = None        # sector-specific, e.g. solid_wood|engineered_wood
+    processing_level: Optional[str] = None        # sector-specific for metals: raw|fabricated|machined|assembled
 
 
 class ReportJob(BaseModel):

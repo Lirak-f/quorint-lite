@@ -5,6 +5,7 @@ import { Nav } from "@/components/nav";
 import { PaddleProvider } from "@/components/paddle-provider";
 import { AnalyticsProvider } from "@/components/analytics-provider";
 import { createClient } from "@/lib/supabase/server";
+import { Toaster } from "sonner";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -44,9 +45,11 @@ export default async function RootLayout({
     <html lang="en" className={`${inter.variable} ${dmSerifDisplay.variable} ${ibmPlexMono.variable} h-full`}>
       <body className="min-h-full flex flex-col bg-white">
         <AnalyticsProvider>
-          <PaddleProvider />
-          <Nav userEmail={user?.email} />
-          <main className="flex-1">{children}</main>
+          <PaddleProvider>
+            <Nav userEmail={user?.email} />
+            <main className="flex-1">{children}</main>
+            <Toaster position="bottom-right" richColors />
+          </PaddleProvider>
         </AnalyticsProvider>
       </body>
     </html>

@@ -1,0 +1,153 @@
+sector_name: works_of_art
+hs_chapters: ["97", "98", "99"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Kunsthandel Großhandel", "Antiquitäten Großhandel Deutschland", "Kunstwerke Großhandel"]
+  AT: ["Kunsthandel Großhandel Österreich", "Antiquitäten Großhandel Wien"]
+  IT: ["opere d'arte ingrosso", "antiquariato ingrosso Italia", "arte contemporanea ingrosso"]
+  FR: ["oeuvres d'art grossiste", "antiquités grossiste France", "galerie d'art grossiste"]
+  NL: ["kunsthandel groothandel", "antiquiteiten groothandel Nederland", "kunstwerken groothandel"]
+  CH: ["Kunsthandel Grosshandel Schweiz", "Antiquitäten Grosshandel"]
+
+retail_to_wholesale_ratio: 0.35
+typical_retailer_margin: 0.65
+
+compliance_checks:
+  - id: eu_cultural_goods_regulation
+    name: EU Cultural Goods Import Regulation (EU 2019/880)
+    type: mandatory
+    critical: true
+    cost_low_eur: 500
+    cost_high_eur: 3000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 16
+    providers:
+      - "EU customs authority in destination country"
+      - "National cultural heritage authority"
+      - "Specialist art law firm"
+    note: "EU Regulation 2019/880 — cultural goods over 250 years old require an import licence or importer statement depending on category and value threshold when entering EU from non-EU countries. Two tiers: (1) licence required for archaeological objects and certain cultural goods above value thresholds; (2) importer statement with standardised document for other cultural goods. Applies to imports from WB6 countries (which have significant archaeological heritage under UNESCO and bilateral protection agreements). The system is managed via a dedicated EU IT system (COPIS/customs integration)."
+
+  - id: cites_antiques
+    name: CITES Permits — Antiques Containing Protected Species Materials
+    type: mandatory
+    critical: false
+    cost_low_eur: 200
+    cost_high_eur: 1000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "National CITES Management Authority"
+      - "EU CITES import authority in destination country"
+    note: "Washington Convention (CITES) — antiques and works of art containing materials from protected species (ivory, tortoiseshell, whale bone, certain hardwoods, exotic skins) require CITES permits even if manufactured before 1947. Pre-Convention antiques may be exempt if documentation proves age, but burden of proof lies with seller. Common in antique furniture (ivory inlays), musical instruments (tortoiseshell, ivory keys), and decorative arts. Always verify material composition of antiques."
+
+  - id: amld5_aml_compliance
+    name: Anti-Money Laundering (AMLD5) — Art Market Operators
+    type: mandatory
+    critical: true
+    cost_low_eur: 2000
+    cost_high_eur: 8000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "AML compliance officer / specialist firm"
+      - "National FIU (Financial Intelligence Unit) registration"
+      - "Compliance software: ComplyAdvantage, Refinitiv World-Check"
+    note: "EU 5th Anti-Money Laundering Directive (AMLD5) — art market operators (galleries, auction houses, art dealers, free ports) dealing in transactions of €10,000+ are 'obliged entities' under EU AML/CFT law. Requirements: Customer Due Diligence (CDD/KYC), PEP and sanctions screening, suspicious transaction reporting to national FIU, senior management responsibility. All 27 EU member states have transposed AMLD5. Sellers and buyers must be identified and documented."
+
+  - id: unesco_1970_provenance
+    name: UNESCO 1970 Convention Provenance Documentation
+    type: mandatory
+    critical: false
+    cost_low_eur: 500
+    cost_high_eur: 2000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "Art provenance researcher"
+      - "National cultural patrimony authority in country of origin"
+    note: "UNESCO Convention on the Means of Prohibiting and Preventing the Illicit Import, Export and Transfer of Ownership of Cultural Property (1970) — all EU member states are signatories. Major EU auction houses (Christie's, Sotheby's, Bonhams) and galleries require provenance documentation proving ownership before 1970 or clean export history. Archaeological objects from WB6 countries without documented provenance will face refusal by reputable buyers and potential repatriation demands."
+
+  - id: import_vat_art
+    name: Reduced VAT on Art Imports + Customs Tariff Classification
+    type: recommended
+    critical: false
+    cost_low_eur: 200
+    cost_high_eur: 1000
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 4
+    providers:
+      - "EU customs agent with art specialisation"
+      - "Tax advisor with VAT expertise"
+    note: "EU VAT Directive allows reduced VAT rates (5-12% depending on member state) on imports of original works of art (HS 9701-9703). Standard definition: paintings, sculptures, engravings, prints by the artist, limited editions of 8 copies for sculptures. HS 97 classification is critical — misclassification as decorative items (HS 83, HS 39) results in standard VAT rate. Customs duty on art imports from WB6 is 0% under SAA preferential tariff. Obtain correct tariff ruling before first shipment."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "curator"
+    - "buying"
+    - "acquisitions"
+    - "collector"
+    - "art advisor"
+    - "gallery director"
+    - "auction specialist"
+  company_keywords:
+    - "Kunsthandel"
+    - "galerie"
+    - "galleria"
+    - "gallery"
+    - "Antiquitäten"
+    - "antiquités"
+    - "antiquariato"
+    - "antiques"
+    - "auction"
+    - "Auktionshaus"
+    - "maison de vente"
+    - "casa d'aste"
+    - "art dealer"
+    - "museum shop"
+    - "collector"
+    - "contemporary art"
+    - "Gegenwartskunst"
+  company_size_ranges: ["1-10", "11-50", "51-200"]
+
+trade_fairs:
+  - name: "Art Basel Switzerland"
+    country: CH
+    city: Basel
+    month: 6
+    url: "https://www.artbasel.com"
+  - name: "TEFAF Maastricht"
+    country: NL
+    city: Maastricht
+    month: 3
+    url: "https://www.tefaf.com"
+  - name: "viennacontemporary Vienna"
+    country: AT
+    city: Vienna
+    month: 9
+    url: "https://www.viennacontemporary.at"
+  - name: "Frieze London"
+    country: GB
+    city: London
+    month: 10
+    url: "https://www.frieze.com"
+  - name: "BRAFA Brussels"
+    country: BE
+    city: Brussels
+    month: 1
+    url: "https://www.brafa.art"
+
+typical_first_order_units: 10
+typical_compliance_cost_eur: 3000
+sample_shipping_cost_eur: 1500
+
+competitor_query_template: >
+  Who are the top 3-5 art, antiques, and collectibles exporters or galleries currently
+  supplying {target_country} art dealers, auction houses, galleries, and collectors in 2025?
+  Focus on suppliers from Balkans (Kosovo, Albania, Serbia — emerging contemporary art scenes),
+  Eastern Europe (Poland, Czech Republic — established art markets), and established Western
+  European galleries operating in this market.
+  For each: art category (contemporary, antique, regional heritage), country of origin,
+  approximate price range, provenance documentation standards, and key buyers.
+  Cite sources.

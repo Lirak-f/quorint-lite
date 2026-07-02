@@ -1,0 +1,153 @@
+sector_name: raw_textiles
+hs_chapters: ["50", "51", "52", "53", "54", "55", "56", "57", "58", "59", "60"]
+
+# Google Shopping queries per target country language
+price_queries:
+  DE: ["Stoff Großhandel", "Textilgroßhandel Deutschland", "Garn Großhandel"]
+  AT: ["Stoff Großhandel Österreich", "Textilien Großhandel Wien"]
+  IT: ["tessuti ingrosso", "filato ingrosso Italia", "stoffe ingrosso"]
+  FR: ["tissu grossiste", "textile grossiste France", "fil grossiste"]
+  NL: ["stof groothandel", "garens groothandel Nederland", "textiel groothandel"]
+  CH: ["Stoff Grosshandel Schweiz", "Garn Grosshandel"]
+
+retail_to_wholesale_ratio: 0.50
+typical_retailer_margin: 0.50
+
+compliance_checks:
+  - id: eu_textile_labelling
+    name: EU Textile Labelling Regulation (EU 1007/2011)
+    type: mandatory
+    critical: true
+    cost_low_eur: 300
+    cost_high_eur: 1000
+    lead_time_weeks_min: 1
+    lead_time_weeks_max: 4
+    providers:
+      - "Label printer — INCI-style fibre composition labels"
+      - "Regulatory compliance consultant"
+    note: "EU Regulation 1007/2011 — all textile products sold in EU must be labelled with full fibre composition (by weight percentage, using standardised EU fibre names), country of origin, care instructions (ISO symbols), and manufacturer identification. Labels must be in the official language(s) of the destination country. Non-compliance triggers market surveillance removal. Verify fibre names against Annex I of the regulation."
+
+  - id: reach_azo_dyes_textiles
+    name: REACH Restriction on Azo Dyes in Textiles (Annex XVII Entry 43)
+    type: mandatory
+    critical: true
+    cost_low_eur: 400
+    cost_high_eur: 1500
+    lead_time_weeks_min: 2
+    lead_time_weeks_max: 6
+    providers:
+      - "Eurofins Textile Testing"
+      - "SGS Consumer Testing Services"
+      - "Intertek"
+    note: "EU REACH Annex XVII Entry 43 — azo dyes that can release carcinogenic aromatic amines are restricted in textiles to <30 mg/kg per amine. 22 restricted amines listed. Test method: EN ISO 14362-1 (reductive cleavage). Also check disperse dyes (EN ISO 17234-2) for sensitising dyes. Required for all dyed fabrics, garments, and accessories. Obtain test report per fabric/colour."
+
+  - id: oeko_tex_standard_100
+    name: OEKO-TEX Standard 100 Certification
+    type: commercial_expected
+    critical: false
+    cost_low_eur: 1000
+    cost_high_eur: 4000
+    lead_time_weeks_min: 6
+    lead_time_weeks_max: 16
+    providers:
+      - "OEKO-TEX Association: oeko-tex.com"
+      - "Hohenstein Institute"
+      - "TESTEX Switzerland"
+    note: "OEKO-TEX Standard 100 is the most recognised textile safety certification in EU retail. Required by H&M, Zara, Decathlon, and most EU fashion retailers for fabric and garment suppliers. Tests for 100+ harmful substances including pesticides, heavy metals, formaldehyde, pH value. Annual renewal required. Certification per fabric type/colour. Significant competitive advantage in EU market."
+
+  - id: gots_organic
+    name: Global Organic Textile Standard (GOTS) — HS 52, 53 Cotton/Flax
+    type: recommended
+    critical: false
+    cost_low_eur: 2000
+    cost_high_eur: 6000
+    lead_time_weeks_min: 16
+    lead_time_weeks_max: 52
+    providers:
+      - "GOTS: global-standard.org"
+      - "Bureau Veritas, Control Union"
+      - "KIWA"
+    note: "Global Organic Textile Standard (GOTS) — for organic cotton (HS 52), flax (HS 53), and wool (HS 51) textiles. Requires certified organic fibre input (GOTS or NOP/EU organic), restricted processing chemicals, social compliance. Commands 15-30% price premium. EU organic textile market growing >10% annually. Recommended for cotton and natural fibre producers."
+
+  - id: en_13501_fire_resistant
+    name: EN 13501 / EN 14116 Fire Classification (Technical Textiles — HS 59)
+    type: mandatory
+    critical: false
+    cost_low_eur: 1500
+    cost_high_eur: 5000
+    lead_time_weeks_min: 4
+    lead_time_weeks_max: 12
+    providers:
+      - "Exova / Element Materials Technology"
+      - "Hohenstein Institute"
+      - "Centexbel Belgium"
+    note: "For coated/technical fabrics (HS 59) used in construction, transportation, or public buildings — EU Construction Products Regulation and national fire safety standards require fire classification testing (EN 13501-1 for construction applications, EN 14116 for protective clothing). CE marking may be required for construction-use technical textiles."
+
+buyer_filters:
+  person_titles:
+    - "procurement"
+    - "purchasing"
+    - "einkauf"
+    - "acquisti"
+    - "achat"
+    - "buying"
+    - "fabric buyer"
+    - "textile buyer"
+    - "yarn buyer"
+    - "category manager"
+  company_keywords:
+    - "Textilgroßhandel"
+    - "textile wholesale"
+    - "fabric wholesaler"
+    - "Stoffgroßhandel"
+    - "yarn distributor"
+    - "Garnhandel"
+    - "fabric importer"
+    - "Textilimport"
+    - "grossiste tissu"
+    - "tessuto ingrosso"
+    - "carpet wholesaler"
+    - "Teppichhandel"
+    - "tappeto ingrosso"
+    - "nonwoven distributor"
+    - "technical textile distributor"
+  company_size_ranges: ["11-50", "51-200", "201-500"]
+
+trade_fairs:
+  - name: "Heimtextil Frankfurt"
+    country: DE
+    city: Frankfurt
+    month: 1
+    url: "https://www.heimtextil.messefrankfurt.com"
+  - name: "Munich Fabric Start"
+    country: DE
+    city: Munich
+    month: 2
+    url: "https://www.munichfabricstart.com"
+  - name: "Texworld Paris"
+    country: FR
+    city: Paris
+    month: 2
+    url: "https://texworld-paris.texworldusa.com"
+  - name: "Intertextile Shanghai (for sourcing)"
+    country: CN
+    city: Shanghai
+    month: 10
+  - name: "Domotex Hannover (Carpets)"
+    country: DE
+    city: Hannover
+    month: 1
+    url: "https://www.domotex.de"
+
+typical_first_order_units: 5000
+typical_compliance_cost_eur: 4500
+sample_shipping_cost_eur: 500
+
+competitor_query_template: >
+  Who are the top 3-5 fabric, yarn, and raw textile exporters currently supplying
+  {target_country} garment manufacturers, home textile brands, and distributors in 2025?
+  Focus on suppliers from Balkans (North Macedonia, Kosovo, Serbia), Turkey, Pakistan, and India
+  with EU market presence.
+  For each: fibre type and product, country of origin, approximate wholesale price per metre or kg,
+  certifications held (OEKO-TEX, GOTS, REACH compliance), and key customers.
+  Cite sources.
